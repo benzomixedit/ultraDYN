@@ -38,15 +38,23 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup JUCE
-        uses: juce-framework/juce-setup@v1
-        with:
-          version: ${{ env.JUCE_VERSION }}
+        run: |
+          # Download and setup JUCE framework
+          JUCE_DIR="$HOME/juce"
+          mkdir -p "$JUCE_DIR"
+          cd "$JUCE_DIR"
+          
+          # Clone JUCE repository
+          git clone --depth 1 --branch ${{ env.JUCE_VERSION }} https://github.com/juce-framework/JUCE.git .
+          
+          # Set JUCE path for the build
+          echo "JUCE_DIR=$JUCE_DIR" >> $GITHUB_ENV
 
       - name: Cache JUCE
         uses: actions/cache@v4
         with:
           path: |
-            ~/.juce
+            $HOME/juce
             ${{ github.workspace }}/JuceLibraryCode
           key: juce-${{ env.JUCE_VERSION }}-${{ runner.os }}
 
