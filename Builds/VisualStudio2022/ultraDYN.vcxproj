@@ -95,7 +95,7 @@
     <ClCompile Include="..\..\JuceLibraryCode\include_juce_audio_basics.cpp" />
     <ClCompile Include="..\..\JuceLibraryCode\include_juce_audio_devices.cpp" />
     <ClCompile Include="..\..\JuceLibraryCode\include_juce_audio_formats.cpp" />
-    <ClCompile Include="..\..\JuceLibraryCode\include_juce_audio_plugin_client.cpp" />
+    <ClCompile Include="..\..\JuceLibraryCode\include_juce_audio_plugin_client_VST3.cpp" />
     <ClCompile Include="..\..\JuceLibraryCode\include_juce_core.cpp" />
     <ClCompile Include="..\..\JuceLibraryCode\include_juce_data_structures.cpp" />
     <ClCompile Include="..\..\JuceLibraryCode\include_juce_dsp.cpp" />
