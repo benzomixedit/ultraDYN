@@ -106,7 +106,11 @@ jobs:
           if [ "${{ runner.os }}" = "macOS" ]; then
             # macOS build - use ultraDYN.jucer
             echo "Building macOS project..."
-            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme ultraDYN -configuration ${{ github.event.inputs.config }} -derivedDataPath build -allowProvisioningUpdates
+            # List available schemes first
+            echo "Available schemes in ultraDYN.xcodeproj:"
+            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -list
+            # Try building without specifying scheme (uses default)
+            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -configuration ${{ github.event.inputs.config }} -derivedDataPath build -allowProvisioningUpdates
           elif [ "${{ runner.os }}" = "Windows" ]; then
             # Windows build - use ultraDYN.jucer
             echo "Building Windows project..."

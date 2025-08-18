@@ -97,7 +97,11 @@ jobs:
           if [ "${{ matrix.os }}" = "macOS" ]; then
             # macOS build - use ultraDYN.jucer
             echo "Building macOS project..."
-            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme ultraDYN -configuration Release -derivedDataPath build -allowProvisioningUpdates
+            # List available schemes first
+            echo "Available schemes in ultraDYN.xcodeproj:"
+            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -list
+            # Try building without specifying scheme (uses default)
+            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -configuration Release -derivedDataPath build -allowProvisioningUpdates
           elif [ "${{ matrix.os }}" = "Windows" ]; then
             # Windows build - use ultraDYN.jucer
             echo "Building Windows project..."
