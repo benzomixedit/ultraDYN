@@ -116,6 +116,48 @@ jobs:
           # Build using the "ultraDYN - All" scheme which builds all targets
           xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme "ultraDYN - All" -configuration Release -derivedDataPath build -allowProvisioningUpdates
 
+      - name: Regenerate project files (Windows)
+        if: matrix.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Regenerate project files from ultraDYN.jucer using Projucer
+          Write-Host "Regenerating project files from ultraDYN.jucer..."
+          
+          # Find Projucer
+          $projucerPath = $null
+          $possiblePaths = @(
+            "$env:HOME\juce\extras\Projucer\Builds\VisualStudio2022\x64\Release\App\Projucer.exe",
+            "$env:HOME\juce\extras\Projucer\Builds\VisualStudio2022\x64\Debug\App\Projucer.exe",
+            "$env:HOME\juce\extras\Projucer\Builds\VisualStudio2019\x64\Release\App\Projucer.exe",
+            "$env:HOME\juce\extras\Projucer\Builds\VisualStudio2019\x64\Debug\App\Projucer.exe",
+            "$env:HOME\juce\extras\Projucer\Builds\VisualStudio2017\x64\Release\App\Projucer.exe",
+            "$env:HOME\juce\extras\Projucer\Builds\VisualStudio2017\x64\Debug\App\Projucer.exe"
+          )
+          
+          foreach ($path in $possiblePaths) {
+            if (Test-Path $path) {
+              $projucerPath = $path
+              break
+            }
+          }
+          
+          if ($projucerPath) {
+            Write-Host "Using Projucer at: $projucerPath"
+            & $projucerPath --resave "ultraDYN.jucer"
+          } else {
+            Write-Host "Projucer not found, trying to build it first..."
+            # Try to build Projucer
+            $juceDir = "$env:HOME\juce"
+            if (Test-Path "$juceDir\extras\Projucer\Builds\VisualStudio2022\Projucer.sln") {
+              & msbuild "$juceDir\extras\Projucer\Builds\VisualStudio2022\Projucer.sln" "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal"
+              if (Test-Path "$juceDir\extras\Projucer\Builds\VisualStudio2022\x64\Release\App\Projucer.exe") {
+                & "$juceDir\extras\Projucer\Builds\VisualStudio2022\x64\Release\App\Projucer.exe" --resave "ultraDYN.jucer"
+              }
+            } else {
+              Write-Host "Warning: Projucer project not found, skipping project regeneration"
+            }
+          }
+
       - name: Build project (Windows)
         if: matrix.os == 'Windows'
         shell: pwsh
