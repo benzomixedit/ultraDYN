@@ -112,36 +112,21 @@ jobs:
           security import certificate.p12 -k build.keychain -P password -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
 
-      - name: Regenerate project files (macOS)
+      - name: Verify project configuration (macOS)
         if: matrix.os == 'macOS'
         shell: bash
         run: |
-          # Regenerate project files to ensure they match the current .jucer configuration
-          echo "Regenerating project files..."
+          # Verify that project files are configured correctly for VST3 and AU only
+          echo "Verifying project configuration..."
           
-          # Remove existing project files to force regeneration
-          if [ -d "Builds" ]; then
-            echo "Removing existing build files..."
-            rm -rf Builds
+          if [ -f "Builds/MacOSX/ultraDYN.xcodeproj/project.pbxproj" ]; then
+            echo "Xcode project exists"
+            # List available schemes
+            echo "Available schemes:"
+            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -list
+          else
+            echo "Warning: Xcode project not found"
           fi
-          if [ -d "JuceLibraryCode" ]; then
-            echo "Removing existing JuceLibraryCode..."
-            rm -rf JuceLibraryCode
-          fi
-          
-          # Build Projucer first
-          echo "Building Projucer..."
-          cd $HOME/juce/extras/Projucer/Builds/MacOSX
-          xcodebuild -project Projucer.xcodeproj -scheme Projucer -configuration Release
-          
-          # Go back to project directory
-          cd $GITHUB_WORKSPACE
-          
-          # Run Projucer to regenerate project files
-          echo "Running Projucer to regenerate project files..."
-          $HOME/juce/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer --resave ultraDYN.jucer
-          
-          echo "Project files regenerated"
 
       - name: Build project (macOS)
         if: matrix.os == 'macOS'
@@ -158,12 +143,12 @@ jobs:
           echo "Building AU..."
           xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - AU" -configuration Release -allowProvisioningUpdates
 
-      - name: Regenerate project files (Windows)
+      - name: Fix JUCE paths (Windows)
         if: matrix.os == 'Windows'
         shell: pwsh
         run: |
-          # Regenerate project files to ensure they match the current .jucer configuration
-          Write-Host "Regenerating project files..."
+          # Fix JUCE paths in existing project files
+          Write-Host "Fixing JUCE paths in project files..."
           
           # Use the correct JUCE directory path for Windows CI environment
           $juceDir = "C:\Users\runneradmin\juce"
@@ -187,33 +172,27 @@ jobs:
             }
           }
           
-          # Set JUCE_PATH environment variable
+          # Set JUCE_PATH environment variable for MSBuild
           $env:JUCE_PATH = $juceDir
           Write-Host "Set JUCE_PATH environment variable to: $env:JUCE_PATH"
           
-          # Remove existing project files to force regeneration
-          if (Test-Path "Builds") {
-            Write-Host "Removing existing build files..."
-            Remove-Item -Recurse -Force "Builds"
+          # Check if project files exist and update JUCE paths
+          if (Test-Path "Builds\VisualStudio2022\ultraDYN.vcxproj") {
+            Write-Host "Found existing project files, updating JUCE paths..."
+            
+            # Read the project file
+            $projectContent = Get-Content "Builds\VisualStudio2022\ultraDYN.vcxproj" -Raw
+            
+            # Replace JUCE_PATH references with the correct CI environment path
+            $projectContent = $projectContent -replace '\$\(JUCE_PATH\)', $juceDir
+            
+            # Write back the updated project file
+            Set-Content "Builds\VisualStudio2022\ultraDYN.vcxproj" $projectContent -NoNewline
+            
+            Write-Host "Updated JUCE paths in project file"
+          } else {
+            Write-Host "Warning: Project files not found"
           }
-          if (Test-Path "JuceLibraryCode") {
-            Write-Host "Removing existing JuceLibraryCode..."
-            Remove-Item -Recurse -Force "JuceLibraryCode"
-          }
-          
-          # Build Projucer first
-          Write-Host "Building Projucer..."
-          cd "$juceDir\extras\Projucer\Builds\VisualStudio2022"
-          & "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe" "Projucer.sln" "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal"
-          
-          # Go back to project directory
-          cd "D:\a\ultraDYN\ultraDYN"
-          
-          # Run Projucer to regenerate project files
-          Write-Host "Running Projucer to regenerate project files..."
-          & "$juceDir\extras\Projucer\Builds\VisualStudio2022\x64\Release\App\Projucer.exe" --resave "ultraDYN.jucer"
-          
-          Write-Host "Project files regenerated"
 
       - name: Build project (Windows)
         if: matrix.os == 'Windows'
