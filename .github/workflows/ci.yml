@@ -60,6 +60,18 @@ jobs:
             Builds/VisualStudio2022/x64/${{ matrix.config }}/
           key: build-${{ runner.os }}-${{ matrix.config }}-${{ hashFiles('**/*.cpp', '**/*.h', '**/*.jucer') }}
 
+      - name: Build Projucer
+        shell: bash
+        run: |
+          # Build Projucer first
+          echo "Building Projucer..."
+          cd $HOME/juce/extras/Projucer
+          if [ "${{ matrix.os }}" = "macOS" ]; then
+            xcodebuild -project Projucer.xcodeproj -scheme Projucer -configuration Release -derivedDataPath build
+          elif [ "${{ matrix.os }}" = "Windows" ]; then
+            msbuild Projucer.sln /p:Configuration=Release /p:Platform=x64
+          fi
+
       - name: Regenerate project files
         shell: bash
         run: |
@@ -67,10 +79,10 @@ jobs:
           echo "Regenerating project files from ultraDYN.jucer..."
           if [ "${{ matrix.os }}" = "macOS" ]; then
             # Use Projucer to regenerate Xcode project
-            $HOME/juce/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer --resave ultraDYN.jucer
+            $HOME/juce/extras/Projucer/build/Build/Products/Release/Projucer.app/Contents/MacOS/Projucer --resave ultraDYN.jucer
           elif [ "${{ matrix.os }}" = "Windows" ]; then
             # Use Projucer to regenerate Visual Studio project
-            $HOME/juce/extras/Projucer/Builds/VisualStudio2022/x64/Release/App/Projucer.exe --resave ultraDYN.jucer
+            $HOME/juce/extras/Projucer/build/Build/Products/Release/App/Projucer.exe --resave ultraDYN.jucer
           fi
 
       - name: Setup build environment
