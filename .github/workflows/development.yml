@@ -132,9 +132,9 @@ jobs:
             xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -list
             # Build VST3 and AU targets separately to avoid AAX
             echo "Building VST3..."
-            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - VST3" -configuration ${{ github.event.inputs.config }} -derivedDataPath build -allowProvisioningUpdates
+            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - VST3" -configuration ${{ github.event.inputs.config }} -allowProvisioningUpdates
             echo "Building AU..."
-            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - AU" -configuration ${{ github.event.inputs.config }} -derivedDataPath build -allowProvisioningUpdates
+            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - AU" -configuration ${{ github.event.inputs.config }} -allowProvisioningUpdates
 
       - name: Fix JUCE paths in project files (Windows)
         if: runner.os == 'Windows'
