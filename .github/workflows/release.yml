@@ -225,8 +225,8 @@ jobs:
           
           if ($msbuildPath) {
             Write-Host "Using MSBuild at: $msbuildPath"
-            # Build only the VST3 target to avoid graphics module issues
-            & $msbuildPath "Builds\VisualStudio2022\ultraDYN.sln" "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal" "/t:ultraDYN - VST3"
+            # Build the ultraDYN project
+            & $msbuildPath "Builds\VisualStudio2022\ultraDYN.sln" "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal" "/t:ultraDYN"
           } else {
             Write-Error "MSBuild not found. Please ensure Visual Studio or Build Tools are installed."
             exit 1
