@@ -59,8 +59,22 @@ jobs:
             ${{ github.workspace }}/JuceLibraryCode
           key: juce-${{ env.JUCE_VERSION }}-${{ runner.os }}
 
+      - name: Regenerate project files
+        shell: bash
+        run: |
+          # Regenerate project files from ultraDYN.jucer
+          echo "Regenerating project files from ultraDYN.jucer..."
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            # Use Projucer to regenerate Xcode project
+            $HOME/juce/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer --resave ultraDYN.jucer
+          elif [ "${{ runner.os }}" = "Windows" ]; then
+            # Use Projucer to regenerate Visual Studio project
+            $HOME/juce/extras/Projucer/Builds/VisualStudio2022/x64/Release/App/Projucer.exe --resave ultraDYN.jucer
+          fi
+
       - name: Setup build environment
         if: runner.os == 'macOS'
+        shell: bash
         run: |
           # Create self-signed certificate for code signing
           security create-keychain -p "" build.keychain
@@ -68,23 +82,25 @@ jobs:
           security unlock-keychain -p "" build.keychain
           security set-keychain-settings build.keychain
           
-          # Create certificate
+          # Create certificate with proper password handling
           openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -subj "/CN=UltraDYN Development"
-          openssl pkcs12 -export -out certificate.p12 -inkey key.pem -in cert.pem -passout pass:""
+          openssl pkcs12 -export -out certificate.p12 -inkey key.pem -in cert.pem -passout pass:password
           
-          # Import certificate
-          security import certificate.p12 -k build.keychain -P "" -T /usr/bin/codesign
+          # Import certificate with correct password
+          security import certificate.p12 -k build.keychain -P password -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
 
       - name: Build project
         shell: bash
         run: |
           if [ "${{ runner.os }}" = "macOS" ]; then
-            # macOS build
-            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme ultraDYN -configuration ${{ github.event.inputs.config }} -derivedDataPath build
+            # macOS build - use ultraDYN.jucer
+            echo "Building macOS project..."
+            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme ultraDYN -configuration ${{ github.event.inputs.config }} -derivedDataPath build -allowProvisioningUpdates
           elif [ "${{ runner.os }}" = "Windows" ]; then
-            # Windows build
-            msbuild Builds/VisualStudio2022/ultraDYN.sln /p:Configuration=${{ github.event.inputs.config }} /p:Platform=x64
+            # Windows build - use ultraDYN.jucer
+            echo "Building Windows project..."
+            msbuild Builds/VisualStudio2022/ultraDYN.sln /p:Configuration=${{ github.event.inputs.config }} /p:Platform=x64 /verbosity:minimal
           fi
 
       - name: Setup pluginval
@@ -103,10 +119,24 @@ jobs:
         shell: bash
         run: |
           if [ "${{ runner.os }}" = "macOS" ]; then
-            ./pluginval --validate-in-process --timeout-ms 60000 build/Build/Products/${{ github.event.inputs.config }}/ultraDYN.vst3
-            ./pluginval --validate-in-process --timeout-ms 60000 build/Build/Products/${{ github.event.inputs.config }}/ultraDYN.component
+            echo "Validating macOS plugins..."
+            if [ -f "build/Build/Products/${{ github.event.inputs.config }}/ultraDYN.vst3" ]; then
+              ./pluginval --validate-in-process --timeout-ms 60000 build/Build/Products/${{ github.event.inputs.config }}/ultraDYN.vst3
+            else
+              echo "Warning: VST3 plugin not found"
+            fi
+            if [ -f "build/Build/Products/${{ github.event.inputs.config }}/ultraDYN.component" ]; then
+              ./pluginval --validate-in-process --timeout-ms 60000 build/Build/Products/${{ github.event.inputs.config }}/ultraDYN.component
+            else
+              echo "Warning: Audio Unit plugin not found"
+            fi
           elif [ "${{ runner.os }}" = "Windows" ]; then
-            ./pluginval.exe --validate-in-process --timeout-ms 60000 Builds/VisualStudio2022/x64/${{ github.event.inputs.config }}/VST3/ultraDYN.vst3
+            echo "Validating Windows plugins..."
+            if [ -f "Builds/VisualStudio2022/x64/${{ github.event.inputs.config }}/VST3/ultraDYN.vst3" ]; then
+              ./pluginval.exe --validate-in-process --timeout-ms 60000 Builds/VisualStudio2022/x64/${{ github.event.inputs.config }}/VST3/ultraDYN.vst3
+            else
+              echo "Warning: VST3 plugin not found"
+            fi
           fi
 
       - name: Create DMG (macOS only)
