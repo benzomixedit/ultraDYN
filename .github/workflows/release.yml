@@ -13,16 +13,13 @@ jobs:
   build-and-release:
     strategy:
       matrix:
-        platform: [macos-latest, windows-latest, ubuntu-latest]
+        platform: [macos-latest, windows-latest]
         include:
           - platform: macos-latest
             os: macOS
             arch: universal
           - platform: windows-latest
             os: Windows
-            arch: x64
-          - platform: ubuntu-latest
-            os: Linux
             arch: x64
 
     runs-on: ${{ matrix.platform }}
@@ -69,9 +66,6 @@ jobs:
           elif [ "${{ matrix.os }}" = "Windows" ]; then
             # Windows build
             msbuild Builds/VisualStudio2022/ultraDYN.sln /p:Configuration=Release /p:Platform=x64
-          else
-            # Linux build
-            make -C Builds/LinuxMakefile CONFIG=Release
           fi
 
       - name: Setup pluginval
@@ -83,10 +77,6 @@ jobs:
           elif [ "${{ matrix.os }}" = "Windows" ]; then
             curl -L -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/download/v${{ env.PLUGINVAL_VERSION }}/pluginval_Windows.zip"
             unzip pluginval.zip
-          else
-            curl -L -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/download/v${{ env.PLUGINVAL_VERSION }}/pluginval_Linux.zip"
-            unzip pluginval.zip
-            chmod +x pluginval
           fi
 
       - name: Validate plugins
@@ -96,8 +86,6 @@ jobs:
             ./pluginval --validate-in-process --timeout-ms 60000 build/Build/Products/Release/ultraDYN.component
           elif [ "${{ matrix.os }}" = "Windows" ]; then
             ./pluginval.exe --validate-in-process --timeout-ms 60000 Builds/VisualStudio2022/x64/Release/VST3/ultraDYN.vst3
-          else
-            ./pluginval --validate-in-process --timeout-ms 60000 Builds/LinuxMakefile/build/ultraDYN.so
           fi
 
       - name: Create DMG (macOS only)
@@ -126,8 +114,6 @@ jobs:
             build/Build/Products/Release/*.app
             Builds/VisualStudio2022/x64/Release/VST3/*.vst3
             Builds/VisualStudio2022/x64/Release/Standalone/*.exe
-            Builds/LinuxMakefile/build/*.so
-            Builds/LinuxMakefile/build/ultraDYN
             ultraDYN-*-macOS.dmg
 
   create-release:
@@ -152,7 +138,6 @@ jobs:
             artifacts/**/*.component
             artifacts/**/*.app
             artifacts/**/*.exe
-            artifacts/**/*.so
             artifacts/**/*.dmg
           generate_release_notes: true
           draft: false
