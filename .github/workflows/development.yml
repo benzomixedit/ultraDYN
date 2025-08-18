@@ -153,7 +153,9 @@ jobs:
             
             if [ -n "$MSBUILD_PATH" ]; then
               echo "Using MSBuild at: $MSBUILD_PATH"
-              "$MSBUILD_PATH" Builds/VisualStudio2022/ultraDYN.sln /p:Configuration=${{ github.event.inputs.config }} /p:Platform=x64 /verbosity:minimal
+              # Use array to avoid parameter parsing issues
+              MSBUILD_ARGS=("Builds/VisualStudio2022/ultraDYN.sln" "/p:Configuration=${{ github.event.inputs.config }}" "/p:Platform=x64" "/verbosity:minimal")
+              "$MSBUILD_PATH" "${MSBUILD_ARGS[@]}"
             else
               echo "Error: MSBuild not found. Please ensure Visual Studio or Build Tools are installed."
               exit 1

@@ -144,7 +144,9 @@ jobs:
             
             if [ -n "$MSBUILD_PATH" ]; then
               echo "Using MSBuild at: $MSBUILD_PATH"
-              "$MSBUILD_PATH" Builds/VisualStudio2022/ultraDYN.sln /p:Configuration=Release /p:Platform=x64 /verbosity:minimal
+              # Use array to avoid parameter parsing issues
+              MSBUILD_ARGS=("Builds/VisualStudio2022/ultraDYN.sln" "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal")
+              "$MSBUILD_PATH" "${MSBUILD_ARGS[@]}"
             else
               echo "Error: MSBuild not found. Please ensure Visual Studio or Build Tools are installed."
               exit 1
@@ -204,6 +206,36 @@ jobs:
             "ultraDYN-$VERSION-macOS.dmg" \
             "build/Build/Products/Release/"
 
+      - name: Create Windows Installer
+        if: matrix.os == 'Windows'
+        shell: bash
+        run: |
+          # Create Windows installer using NSIS or similar
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "Creating Windows installer for version $VERSION"
+          
+          # Check if we have the necessary files
+          if [ -f "Builds/VisualStudio2022/x64/Release/VST3/ultraDYN.vst3" ]; then
+            echo "VST3 plugin found"
+          else
+            echo "Warning: VST3 plugin not found"
+          fi
+          
+          if [ -f "Builds/VisualStudio2022/x64/Release/Standalone/ultraDYN.exe" ]; then
+            echo "Standalone app found"
+          else
+            echo "Warning: Standalone app not found"
+          fi
+          
+          # Create a simple zip installer for now
+          mkdir -p "ultraDYN-$VERSION-Windows"
+          cp -r "Builds/VisualStudio2022/x64/Release/VST3/"* "ultraDYN-$VERSION-Windows/" 2>/dev/null || echo "No VST3 files to copy"
+          cp -r "Builds/VisualStudio2022/x64/Release/Standalone/"* "ultraDYN-$VERSION-Windows/" 2>/dev/null || echo "No Standalone files to copy"
+          
+          # Create zip file
+          zip -r "ultraDYN-$VERSION-Windows.zip" "ultraDYN-$VERSION-Windows/"
+          echo "Created Windows installer: ultraDYN-$VERSION-Windows.zip"
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -215,6 +247,7 @@ jobs:
             Builds/VisualStudio2022/x64/Release/VST3/*.vst3
             Builds/VisualStudio2022/x64/Release/Standalone/*.exe
             ultraDYN-*-macOS.dmg
+            ultraDYN-*-Windows.zip
 
   create-release:
     needs: build-and-release
