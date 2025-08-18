@@ -1,0 +1,161 @@
+name: Release Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  JUCE_VERSION: '8.0.8'
+  PLUGINVAL_VERSION: '1.0.0'
+
+jobs:
+  build-and-release:
+    strategy:
+      matrix:
+        platform: [macos-latest, windows-latest, ubuntu-latest]
+        include:
+          - platform: macos-latest
+            os: macOS
+            arch: universal
+          - platform: windows-latest
+            os: Windows
+            arch: x64
+          - platform: ubuntu-latest
+            os: Linux
+            arch: x64
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JUCE
+        uses: juce-framework/juce-setup@v1
+        with:
+          version: ${{ env.JUCE_VERSION }}
+
+      - name: Cache JUCE
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.juce
+            ${{ github.workspace }}/JuceLibraryCode
+          key: juce-${{ env.JUCE_VERSION }}-${{ runner.os }}
+
+      - name: Setup build environment
+        if: matrix.os == 'macOS'
+        run: |
+          # Create self-signed certificate for code signing
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security set-keychain-settings build.keychain
+          
+          # Create certificate
+          openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -subj "/CN=UltraDYN Development"
+          openssl pkcs12 -export -out certificate.p12 -inkey key.pem -in cert.pem -passout pass:""
+          
+          # Import certificate
+          security import certificate.p12 -k build.keychain -P "" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
+
+      - name: Build project
+        run: |
+          if [ "${{ matrix.os }}" = "macOS" ]; then
+            # macOS build
+            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme ultraDYN -configuration Release -derivedDataPath build
+          elif [ "${{ matrix.os }}" = "Windows" ]; then
+            # Windows build
+            msbuild Builds/VisualStudio2022/ultraDYN.sln /p:Configuration=Release /p:Platform=x64
+          else
+            # Linux build
+            make -C Builds/LinuxMakefile CONFIG=Release
+          fi
+
+      - name: Setup pluginval
+        run: |
+          if [ "${{ matrix.os }}" = "macOS" ]; then
+            curl -L -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/download/v${{ env.PLUGINVAL_VERSION }}/pluginval_macOS.zip"
+            unzip pluginval.zip
+            chmod +x pluginval
+          elif [ "${{ matrix.os }}" = "Windows" ]; then
+            curl -L -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/download/v${{ env.PLUGINVAL_VERSION }}/pluginval_Windows.zip"
+            unzip pluginval.zip
+          else
+            curl -L -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/download/v${{ env.PLUGINVAL_VERSION }}/pluginval_Linux.zip"
+            unzip pluginval.zip
+            chmod +x pluginval
+          fi
+
+      - name: Validate plugins
+        run: |
+          if [ "${{ matrix.os }}" = "macOS" ]; then
+            ./pluginval --validate-in-process --timeout-ms 60000 build/Build/Products/Release/ultraDYN.vst3
+            ./pluginval --validate-in-process --timeout-ms 60000 build/Build/Products/Release/ultraDYN.component
+          elif [ "${{ matrix.os }}" = "Windows" ]; then
+            ./pluginval.exe --validate-in-process --timeout-ms 60000 Builds/VisualStudio2022/x64/Release/VST3/ultraDYN.vst3
+          else
+            ./pluginval --validate-in-process --timeout-ms 60000 Builds/LinuxMakefile/build/ultraDYN.so
+          fi
+
+      - name: Create DMG (macOS only)
+        if: matrix.os == 'macOS'
+        run: |
+          # Create DMG installer
+          VERSION=${GITHUB_REF#refs/tags/}
+          create-dmg \
+            --volname "UltraDYN $VERSION" \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 100 \
+            --icon "ultraDYN.app" 200 190 \
+            --hide-extension "ultraDYN.app" \
+            --app-drop-link 600 185 \
+            "ultraDYN-$VERSION-macOS.dmg" \
+            "build/Build/Products/Release/"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ultraDYN-${{ matrix.os }}-${{ github.ref_name }}
+          path: |
+            build/Build/Products/Release/*.vst3
+            build/Build/Products/Release/*.component
+            build/Build/Products/Release/*.app
+            Builds/VisualStudio2022/x64/Release/VST3/*.vst3
+            Builds/VisualStudio2022/x64/Release/Standalone/*.exe
+            Builds/LinuxMakefile/build/*.so
+            Builds/LinuxMakefile/build/ultraDYN
+            ultraDYN-*-macOS.dmg
+
+  create-release:
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/**/*.vst3
+            artifacts/**/*.component
+            artifacts/**/*.app
+            artifacts/**/*.exe
+            artifacts/**/*.so
+            artifacts/**/*.dmg
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
