@@ -60,6 +60,10 @@ jobs:
             Builds/VisualStudio2022/x64/${{ matrix.config }}/
           key: build-${{ runner.os }}-${{ matrix.config }}-${{ hashFiles('**/*.cpp', '**/*.h', '**/*.jucer') }}
 
+      - name: Setup Visual Studio (Windows)
+        if: matrix.os == 'Windows'
+        uses: microsoft/setup-msbuild@v1.1
+
       - name: Build Projucer
         shell: bash
         run: |

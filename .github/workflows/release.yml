@@ -50,6 +50,10 @@ jobs:
             ${{ github.workspace }}/JuceLibraryCode
           key: juce-${{ env.JUCE_VERSION }}-${{ runner.os }}
 
+      - name: Setup Visual Studio (Windows)
+        if: matrix.os == 'Windows'
+        uses: microsoft/setup-msbuild@v1.1
+
       - name: Build Projucer
         shell: bash
         run: |
