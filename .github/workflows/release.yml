@@ -131,8 +131,27 @@ jobs:
           # Fix JUCE paths in existing project files instead of regenerating
           Write-Host "Fixing JUCE paths in existing project files..."
           
-          $juceDir = "$env:HOME\juce"
+          # Use the correct JUCE directory path for Windows CI environment
+          $juceDir = "C:\Users\runneradmin\juce"
           Write-Host "Using JUCE directory: $juceDir"
+          
+          # Verify JUCE directory exists
+          if (Test-Path $juceDir) {
+            Write-Host "JUCE directory exists: $juceDir"
+            Write-Host "JUCE directory contents:"
+            Get-ChildItem $juceDir -Name | Select-Object -First 10
+          } else {
+            Write-Host "Warning: JUCE directory does not exist: $juceDir"
+            # Try alternative paths
+            $altPaths = @("$env:HOME\juce", "C:\juce", "D:\juce")
+            foreach ($path in $altPaths) {
+              if (Test-Path $path) {
+                $juceDir = $path
+                Write-Host "Found JUCE at alternative path: $juceDir"
+                break
+              }
+            }
+          }
           
           # Check if project files exist
           if (Test-Path "Builds\VisualStudio2022\ultraDYN.vcxproj") {
