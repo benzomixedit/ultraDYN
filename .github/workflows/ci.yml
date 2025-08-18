@@ -31,6 +31,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup JUCE
+        shell: bash
         run: |
           # Download and setup JUCE framework
           JUCE_DIR="$HOME/juce"
@@ -77,6 +78,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
 
       - name: Build project
+        shell: bash
         run: |
           if [ "${{ matrix.os }}" = "macOS" ]; then
             # macOS build
@@ -87,6 +89,7 @@ jobs:
           fi
 
       - name: Setup pluginval
+        shell: bash
         run: |
           if [ "${{ matrix.os }}" = "macOS" ]; then
             curl -L -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/download/v${{ env.PLUGINVAL_VERSION }}/pluginval_macOS.zip"
@@ -98,6 +101,7 @@ jobs:
           fi
 
       - name: Validate plugins
+        shell: bash
         run: |
           if [ "${{ matrix.os }}" = "macOS" ]; then
             ./pluginval --validate-in-process --timeout-ms 60000 build/Build/Products/${{ matrix.config }}/ultraDYN.vst3

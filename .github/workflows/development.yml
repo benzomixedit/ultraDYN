@@ -38,6 +38,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup JUCE
+        shell: bash
         run: |
           # Download and setup JUCE framework
           JUCE_DIR="$HOME/juce"
@@ -76,6 +77,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
 
       - name: Build project
+        shell: bash
         run: |
           if [ "${{ runner.os }}" = "macOS" ]; then
             # macOS build
@@ -83,12 +85,10 @@ jobs:
           elif [ "${{ runner.os }}" = "Windows" ]; then
             # Windows build
             msbuild Builds/VisualStudio2022/ultraDYN.sln /p:Configuration=${{ github.event.inputs.config }} /p:Platform=x64
-          else
-            # Linux build
-            make -C Builds/LinuxMakefile CONFIG=${{ github.event.inputs.config }}
           fi
 
       - name: Setup pluginval
+        shell: bash
         run: |
           if [ "${{ runner.os }}" = "macOS" ]; then
             curl -L -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/download/v${{ env.PLUGINVAL_VERSION }}/pluginval_macOS.zip"
@@ -97,25 +97,21 @@ jobs:
           elif [ "${{ runner.os }}" = "Windows" ]; then
             curl -L -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/download/v${{ env.PLUGINVAL_VERSION }}/pluginval_Windows.zip"
             unzip pluginval.zip
-          else
-            curl -L -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/download/v${{ env.PLUGINVAL_VERSION }}/pluginval_Linux.zip"
-            unzip pluginval.zip
-            chmod +x pluginval
           fi
 
       - name: Validate plugins
+        shell: bash
         run: |
           if [ "${{ runner.os }}" = "macOS" ]; then
             ./pluginval --validate-in-process --timeout-ms 60000 build/Build/Products/${{ github.event.inputs.config }}/ultraDYN.vst3
             ./pluginval --validate-in-process --timeout-ms 60000 build/Build/Products/${{ github.event.inputs.config }}/ultraDYN.component
           elif [ "${{ runner.os }}" = "Windows" ]; then
             ./pluginval.exe --validate-in-process --timeout-ms 60000 Builds/VisualStudio2022/x64/${{ github.event.inputs.config }}/VST3/ultraDYN.vst3
-          else
-            ./pluginval --validate-in-process --timeout-ms 60000 Builds/LinuxMakefile/build/ultraDYN.so
           fi
 
       - name: Create DMG (macOS only)
         if: runner.os == 'macOS' && github.event.inputs.create_release == 'true'
+        shell: bash
         run: |
           # Create DMG installer
           VERSION="dev-$(date +%Y%m%d-%H%M%S)"
@@ -140,8 +136,6 @@ jobs:
             build/Build/Products/${{ github.event.inputs.config }}/*.app
             Builds/VisualStudio2022/x64/${{ github.event.inputs.config }}/VST3/*.vst3
             Builds/VisualStudio2022/x64/${{ github.event.inputs.config }}/Standalone/*.exe
-            Builds/LinuxMakefile/build/*.so
-            Builds/LinuxMakefile/build/ultraDYN
             ultraDYN-*-macOS.dmg
           retention-days: 7
 
