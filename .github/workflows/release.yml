@@ -144,9 +144,8 @@ jobs:
             
             if [ -n "$MSBUILD_PATH" ]; then
               echo "Using MSBuild at: $MSBUILD_PATH"
-              # Use array to avoid parameter parsing issues
-              MSBUILD_ARGS=("Builds/VisualStudio2022/ultraDYN.sln" "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal")
-              "$MSBUILD_PATH" "${MSBUILD_ARGS[@]}"
+              # Use direct command with proper escaping
+              "$MSBUILD_PATH" "Builds/VisualStudio2022/ultraDYN.sln" "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal"
             else
               echo "Error: MSBuild not found. Please ensure Visual Studio or Build Tools are installed."
               exit 1
