@@ -496,7 +496,7 @@ void CompressorPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buf
 //==============================================================================
 juce::AudioProcessorEditor* CompressorPluginAudioProcessor::createEditor()
 {
-    return new CompressorPluginAudioProcessorEditor (*this);
+    return nullptr; // Headless plugin - no GUI
 }
 
 void CompressorPluginAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
