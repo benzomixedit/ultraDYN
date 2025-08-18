@@ -113,53 +113,54 @@ jobs:
           security import certificate.p12 -k build.keychain -P password -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
 
-      - name: Build project
+      - name: Build project (macOS)
+        if: runner.os == 'macOS'
         shell: bash
         run: |
-          if [ "${{ runner.os }}" = "macOS" ]; then
-            # macOS build - use ultraDYN.jucer
-            echo "Building macOS project..."
-            # List available schemes first
-            echo "Available schemes in ultraDYN.xcodeproj:"
-            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -list
-            # Build using the "ultraDYN - All" scheme which builds all targets
-            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme "ultraDYN - All" -configuration ${{ github.event.inputs.config }} -derivedDataPath build -allowProvisioningUpdates
-          elif [ "${{ runner.os }}" = "Windows" ]; then
-            # Windows build - use ultraDYN.jucer
-            echo "Building Windows project..."
-            # Try to find msbuild in common locations
-            MSBUILD_PATH=""
-            if command -v msbuild >/dev/null 2>&1; then
-              MSBUILD_PATH="msbuild"
-            elif [ -f "/c/Program Files/Microsoft Visual Studio/2022/Enterprise/MSBuild/Current/Bin/MSBuild.exe" ]; then
-              MSBUILD_PATH="/c/Program Files/Microsoft Visual Studio/2022/Enterprise/MSBuild/Current/Bin/MSBuild.exe"
-            elif [ -f "/c/Program Files/Microsoft Visual Studio/2022/Professional/MSBuild/Current/Bin/MSBuild.exe" ]; then
-              MSBUILD_PATH="/c/Program Files/Microsoft Visual Studio/2022/Professional/MSBuild/Current/Bin/MSBuild.exe"
-            elif [ -f "/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe" ]; then
-              MSBUILD_PATH="/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe"
-            elif [ -f "/c/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/MSBuild/Current/Bin/MSBuild.exe" ]; then
-              MSBUILD_PATH="/c/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/MSBuild/Current/Bin/MSBuild.exe"
-            elif [ -f "/c/Program Files (x86)/Microsoft Visual Studio/2019/Professional/MSBuild/Current/Bin/MSBuild.exe" ]; then
-              MSBUILD_PATH="/c/Program Files (x86)/Microsoft Visual Studio/2019/Professional/MSBuild/Current/Bin/MSBuild.exe"
-            elif [ -f "/c/Program Files (x86)/Microsoft Visual Studio/2019/Community/MSBuild/Current/Bin/MSBuild.exe" ]; then
-              MSBUILD_PATH="/c/Program Files (x86)/Microsoft Visual Studio/2019/Community/MSBuild/Current/Bin/MSBuild.exe"
-            elif [ -f "/c/Program Files (x86)/Microsoft Visual Studio/2017/Enterprise/MSBuild/15.0/Bin/MSBuild.exe" ]; then
-              MSBUILD_PATH="/c/Program Files (x86)/Microsoft Visual Studio/2017/Enterprise/MSBuild/15.0/Bin/MSBuild.exe"
-            elif [ -f "/c/Program Files (x86)/Microsoft Visual Studio/2017/Professional/MSBuild/15.0/Bin/MSBuild.exe" ]; then
-              MSBUILD_PATH="/c/Program Files (x86)/Microsoft Visual Studio/2017/Professional/MSBuild/15.0/Bin/MSBuild.exe"
-            elif [ -f "/c/Program Files (x86)/Microsoft Visual Studio/2017/Community/MSBuild/15.0/Bin/MSBuild.exe" ]; then
-              MSBUILD_PATH="/c/Program Files (x86)/Microsoft Visual Studio/2017/Community/MSBuild/15.0/Bin/MSBuild.exe"
-            fi
-            
-            if [ -n "$MSBUILD_PATH" ]; then
-              echo "Using MSBuild at: $MSBUILD_PATH"
-              # Use direct command with proper escaping
-              "$MSBUILD_PATH" "Builds/VisualStudio2022/ultraDYN.sln" "/p:Configuration=${{ github.event.inputs.config }}" "/p:Platform=x64" "/verbosity:minimal"
-            else
-              echo "Error: MSBuild not found. Please ensure Visual Studio or Build Tools are installed."
-              exit 1
-            fi
-          fi
+          # macOS build - use ultraDYN.jucer
+          echo "Building macOS project..."
+          # List available schemes first
+          echo "Available schemes in ultraDYN.xcodeproj:"
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -list
+          # Build using the "ultraDYN - All" scheme which builds all targets
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme "ultraDYN - All" -configuration ${{ github.event.inputs.config }} -derivedDataPath build -allowProvisioningUpdates
+
+      - name: Build project (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Windows build using PowerShell
+          Write-Host "Building Windows project..."
+          
+          # Find MSBuild
+          $msbuildPath = $null
+          $possiblePaths = @(
+            "msbuild",
+            "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
+            "C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe",
+            "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe",
+            "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
+            "C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\MSBuild\Current\Bin\MSBuild.exe",
+            "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\MSBuild\Current\Bin\MSBuild.exe",
+            "C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\MSBuild\15.0\Bin\MSBuild.exe",
+            "C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\MSBuild\15.0\Bin\MSBuild.exe",
+            "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\MSBuild\15.0\Bin\MSBuild.exe"
+          )
+          
+          foreach ($path in $possiblePaths) {
+            if (Get-Command $path -ErrorAction SilentlyContinue) {
+              $msbuildPath = $path
+              break
+            }
+          }
+          
+          if ($msbuildPath) {
+            Write-Host "Using MSBuild at: $msbuildPath"
+            & $msbuildPath "Builds\VisualStudio2022\ultraDYN.sln" "/p:Configuration=${{ github.event.inputs.config }}" "/p:Platform=x64" "/verbosity:minimal"
+          } else {
+            Write-Error "MSBuild not found. Please ensure Visual Studio or Build Tools are installed."
+            exit 1
+          }
 
       - name: Setup pluginval
         shell: bash
