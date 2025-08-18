@@ -73,6 +73,19 @@ jobs:
             fi
           fi
 
+      - name: Verify build tools (Windows)
+        if: matrix.os == 'Windows'
+        shell: bash
+        run: |
+          echo "Checking available build tools..."
+          echo "PATH: $PATH"
+          echo "MSBuild location:"
+          which msbuild || echo "msbuild not found in PATH"
+          echo "Visual Studio installation:"
+          ls -la "C:/Program Files/Microsoft Visual Studio/" || echo "Visual Studio not found"
+          echo "Build Tools installation:"
+          ls -la "C:/Program Files (x86)/Microsoft Visual Studio/" || echo "Build Tools not found"
+
       - name: Setup build environment
         if: matrix.os == 'macOS'
         shell: bash
@@ -105,7 +118,37 @@ jobs:
           elif [ "${{ matrix.os }}" = "Windows" ]; then
             # Windows build - use ultraDYN.jucer
             echo "Building Windows project..."
-            msbuild Builds/VisualStudio2022/ultraDYN.sln /p:Configuration=Release /p:Platform=x64 /verbosity:minimal
+            # Try to find msbuild in common locations
+            MSBUILD_PATH=""
+            if command -v msbuild >/dev/null 2>&1; then
+              MSBUILD_PATH="msbuild"
+            elif [ -f "/c/Program Files/Microsoft Visual Studio/2022/Enterprise/MSBuild/Current/Bin/MSBuild.exe" ]; then
+              MSBUILD_PATH="/c/Program Files/Microsoft Visual Studio/2022/Enterprise/MSBuild/Current/Bin/MSBuild.exe"
+            elif [ -f "/c/Program Files/Microsoft Visual Studio/2022/Professional/MSBuild/Current/Bin/MSBuild.exe" ]; then
+              MSBUILD_PATH="/c/Program Files/Microsoft Visual Studio/2022/Professional/MSBuild/Current/Bin/MSBuild.exe"
+            elif [ -f "/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe" ]; then
+              MSBUILD_PATH="/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe"
+            elif [ -f "/c/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/MSBuild/Current/Bin/MSBuild.exe" ]; then
+              MSBUILD_PATH="/c/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/MSBuild/Current/Bin/MSBuild.exe"
+            elif [ -f "/c/Program Files (x86)/Microsoft Visual Studio/2019/Professional/MSBuild/Current/Bin/MSBuild.exe" ]; then
+              MSBUILD_PATH="/c/Program Files (x86)/Microsoft Visual Studio/2019/Professional/MSBuild/Current/Bin/MSBuild.exe"
+            elif [ -f "/c/Program Files (x86)/Microsoft Visual Studio/2019/Community/MSBuild/Current/Bin/MSBuild.exe" ]; then
+              MSBUILD_PATH="/c/Program Files (x86)/Microsoft Visual Studio/2019/Community/MSBuild/Current/Bin/MSBuild.exe"
+            elif [ -f "/c/Program Files (x86)/Microsoft Visual Studio/2017/Enterprise/MSBuild/15.0/Bin/MSBuild.exe" ]; then
+              MSBUILD_PATH="/c/Program Files (x86)/Microsoft Visual Studio/2017/Enterprise/MSBuild/15.0/Bin/MSBuild.exe"
+            elif [ -f "/c/Program Files (x86)/Microsoft Visual Studio/2017/Professional/MSBuild/15.0/Bin/MSBuild.exe" ]; then
+              MSBUILD_PATH="/c/Program Files (x86)/Microsoft Visual Studio/2017/Professional/MSBuild/15.0/Bin/MSBuild.exe"
+            elif [ -f "/c/Program Files (x86)/Microsoft Visual Studio/2017/Community/MSBuild/15.0/Bin/MSBuild.exe" ]; then
+              MSBUILD_PATH="/c/Program Files (x86)/Microsoft Visual Studio/2017/Community/MSBuild/15.0/Bin/MSBuild.exe"
+            fi
+            
+            if [ -n "$MSBUILD_PATH" ]; then
+              echo "Using MSBuild at: $MSBUILD_PATH"
+              "$MSBUILD_PATH" Builds/VisualStudio2022/ultraDYN.sln /p:Configuration=Release /p:Platform=x64 /verbosity:minimal
+            else
+              echo "Error: MSBuild not found. Please ensure Visual Studio or Build Tools are installed."
+              exit 1
+            fi
           fi
 
       - name: Setup pluginval
