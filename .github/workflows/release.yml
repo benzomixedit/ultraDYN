@@ -198,8 +198,8 @@ jobs:
         if: matrix.os == 'Windows'
         shell: pwsh
         run: |
-          # Windows build using PowerShell
-          Write-Host "Building Windows project..."
+          # Windows build using PowerShell - build only VST3 target
+          Write-Host "Building Windows project (VST3 only)..."
           
           # Find MSBuild
           $msbuildPath = $null
@@ -225,7 +225,8 @@ jobs:
           
           if ($msbuildPath) {
             Write-Host "Using MSBuild at: $msbuildPath"
-            & $msbuildPath "Builds\VisualStudio2022\ultraDYN.sln" "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal"
+            # Build only the VST3 target to avoid graphics module issues
+            & $msbuildPath "Builds\VisualStudio2022\ultraDYN.sln" "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal" "/t:ultraDYN - VST3"
           } else {
             Write-Error "MSBuild not found. Please ensure Visual Studio or Build Tools are installed."
             exit 1
