@@ -50,6 +50,14 @@ jobs:
           
           # Set JUCE path for the build
           echo "JUCE_DIR=$JUCE_DIR" >> $GITHUB_ENV
+          
+          # Verify JUCE setup
+          echo "JUCE directory contents:"
+          ls -la
+          echo "JUCE extras directory contents:"
+          ls -la extras/ || echo "extras directory not found"
+          echo "JUCE Projucer directory contents:"
+          ls -la extras/Projucer/ || echo "Projucer directory not found"
 
       - name: Cache JUCE
         uses: actions/cache@v4
@@ -179,7 +187,23 @@ jobs:
             if (-not $foundProject) {
               Write-Host "No Projucer project found, checking directory structure..."
               Write-Host "JUCE directory contents:"
-              Get-ChildItem "$juceDir\extras\Projucer" -Recurse -Name | Select-Object -First 20
+              if (Test-Path "$juceDir") {
+                Get-ChildItem "$juceDir" -Name | Select-Object -First 10
+                Write-Host "JUCE extras directory contents:"
+                if (Test-Path "$juceDir\extras") {
+                  Get-ChildItem "$juceDir\extras" -Name | Select-Object -First 10
+                  Write-Host "JUCE Projucer directory contents:"
+                  if (Test-Path "$juceDir\extras\Projucer") {
+                    Get-ChildItem "$juceDir\extras\Projucer" -Recurse -Name | Select-Object -First 20
+                  } else {
+                    Write-Host "Projucer directory does not exist"
+                  }
+                } else {
+                  Write-Host "extras directory does not exist"
+                }
+              } else {
+                Write-Host "JUCE directory does not exist"
+              }
               
               # Try to find any Projucer executable
               $projucerExe = Get-ChildItem "$juceDir" -Recurse -Name "Projucer.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -195,8 +219,27 @@ jobs:
             & $projucerPath --resave "ultraDYN.jucer"
             Write-Host "Project files regenerated successfully"
           } else {
-            Write-Host "Warning: Could not find or build Projucer, skipping project regeneration"
-            Write-Host "This may cause build failures due to missing JUCE files"
+            Write-Host "Warning: Could not find or build Projucer, trying alternative approach..."
+            
+            # Try to build Projucer from the main JUCE directory
+            if (Test-Path "$juceDir\extras\Projucer\Projucer.sln") {
+              Write-Host "Found Projucer.sln in main directory, building..."
+              & msbuild "$juceDir\extras\Projucer\Projucer.sln" "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal"
+              
+              # Check if build was successful
+              if (Test-Path "$juceDir\extras\Projucer\Builds\VisualStudio2022\x64\Release\App\Projucer.exe") {
+                $projucerPath = "$juceDir\extras\Projucer\Builds\VisualStudio2022\x64\Release\App\Projucer.exe"
+                Write-Host "Projucer built successfully at: $projucerPath"
+                & $projucerPath --resave "ultraDYN.jucer"
+                Write-Host "Project files regenerated successfully"
+              } else {
+                Write-Host "Warning: Projucer build failed, skipping project regeneration"
+                Write-Host "This may cause build failures due to missing JUCE files"
+              }
+            } else {
+              Write-Host "Warning: Could not find or build Projucer, skipping project regeneration"
+              Write-Host "This may cause build failures due to missing JUCE files"
+            }
           }
 
       - name: Build project (Windows)
