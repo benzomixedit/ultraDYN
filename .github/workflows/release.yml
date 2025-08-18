@@ -124,113 +124,46 @@ jobs:
           # Build using the "ultraDYN - All" scheme which builds all targets
           xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme "ultraDYN - All" -configuration Release -derivedDataPath build -allowProvisioningUpdates
 
-      - name: Regenerate project files (Windows)
+      - name: Fix JUCE paths in project files (Windows)
         if: matrix.os == 'Windows'
         shell: pwsh
         run: |
-          # Regenerate project files from ultraDYN.jucer using Projucer
-          Write-Host "Regenerating project files from ultraDYN.jucer..."
+          # Fix JUCE paths in existing project files instead of regenerating
+          Write-Host "Fixing JUCE paths in existing project files..."
           
-          # Find Projucer
-          $projucerPath = $null
           $juceDir = "$env:HOME\juce"
+          Write-Host "Using JUCE directory: $juceDir"
           
-          # Check for existing Projucer builds
-          $possiblePaths = @(
-            "$juceDir\extras\Projucer\Builds\VisualStudio2022\x64\Release\App\Projucer.exe",
-            "$juceDir\extras\Projucer\Builds\VisualStudio2022\x64\Debug\App\Projucer.exe",
-            "$juceDir\extras\Projucer\Builds\VisualStudio2019\x64\Release\App\Projucer.exe",
-            "$juceDir\extras\Projucer\Builds\VisualStudio2019\x64\Debug\App\Projucer.exe",
-            "$juceDir\extras\Projucer\Builds\VisualStudio2017\x64\Release\App\Projucer.exe",
-            "$juceDir\extras\Projucer\Builds\VisualStudio2017\x64\Debug\App\Projucer.exe"
-          )
-          
-          foreach ($path in $possiblePaths) {
-            if (Test-Path $path) {
-              $projucerPath = $path
-              Write-Host "Found existing Projucer at: $projucerPath"
-              break
-            }
-          }
-          
-          if (-not $projucerPath) {
-            Write-Host "Projucer not found, trying to build it first..."
+          # Check if project files exist
+          if (Test-Path "Builds\VisualStudio2022\ultraDYN.vcxproj") {
+            Write-Host "Found existing project files, updating JUCE paths..."
             
-            # Look for Projucer project files
-            $projucerProjects = @(
-              "$juceDir\extras\Projucer\Builds\VisualStudio2022\Projucer.sln",
-              "$juceDir\extras\Projucer\Builds\VisualStudio2019\Projucer.sln",
-              "$juceDir\extras\Projucer\Builds\VisualStudio2017\Projucer.sln",
-              "$juceDir\extras\Projucer\Projucer.sln"
-            )
+            # Read the project file
+            $projectContent = Get-Content "Builds\VisualStudio2022\ultraDYN.vcxproj" -Raw
             
-            $foundProject = $false
-            foreach ($project in $projucerProjects) {
-              if (Test-Path $project) {
-                Write-Host "Found Projucer project at: $project"
-                Write-Host "Building Projucer..."
-                & msbuild $project "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal"
-                $foundProject = $true
-                break
-              }
-            }
+            # Replace JUCE paths with the correct CI environment path
+            $projectContent = $projectContent -replace 'JUCE_DIR.*?\\', "JUCE_DIR=$juceDir\"
+            $projectContent = $projectContent -replace 'JUCE_DIR.*?/', "JUCE_DIR=$juceDir/"
             
-            if (-not $foundProject) {
-              Write-Host "No Projucer project found, checking directory structure..."
-              Write-Host "JUCE directory contents:"
-              if (Test-Path "$juceDir") {
-                Get-ChildItem "$juceDir" -Name | Select-Object -First 10
-                Write-Host "JUCE extras directory contents:"
-                if (Test-Path "$juceDir\extras") {
-                  Get-ChildItem "$juceDir\extras" -Name | Select-Object -First 10
-                  Write-Host "JUCE Projucer directory contents:"
-                  if (Test-Path "$juceDir\extras\Projucer") {
-                    Get-ChildItem "$juceDir\extras\Projucer" -Recurse -Name | Select-Object -First 20
-                  } else {
-                    Write-Host "Projucer directory does not exist"
-                  }
-                } else {
-                  Write-Host "extras directory does not exist"
-                }
-              } else {
-                Write-Host "JUCE directory does not exist"
-              }
-              
-              # Try to find any Projucer executable
-              $projucerExe = Get-ChildItem "$juceDir" -Recurse -Name "Projucer.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-              if ($projucerExe) {
-                $projucerPath = "$juceDir\$projucerExe"
-                Write-Host "Found Projucer at: $projucerPath"
-              }
-            }
-          }
-          
-          if ($projucerPath) {
-            Write-Host "Using Projucer at: $projucerPath"
-            & $projucerPath --resave "ultraDYN.jucer"
-            Write-Host "Project files regenerated successfully"
+            # Write back the updated project file
+            Set-Content "Builds\VisualStudio2022\ultraDYN.vcxproj" $projectContent -NoNewline
+            
+            Write-Host "Updated JUCE paths in project file"
           } else {
-            Write-Host "Warning: Could not find or build Projucer, trying alternative approach..."
+            Write-Host "Warning: Project files not found"
+          }
+          
+          # Also check and update JuceHeader.h if needed
+          if (Test-Path "JuceLibraryCode\JuceHeader.h") {
+            Write-Host "Checking JuceHeader.h..."
+            $headerContent = Get-Content "JuceLibraryCode\JuceHeader.h" -Raw
             
-            # Try to build Projucer from the main JUCE directory
-            if (Test-Path "$juceDir\extras\Projucer\Projucer.sln") {
-              Write-Host "Found Projucer.sln in main directory, building..."
-              & msbuild "$juceDir\extras\Projucer\Projucer.sln" "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal"
-              
-              # Check if build was successful
-              if (Test-Path "$juceDir\extras\Projucer\Builds\VisualStudio2022\x64\Release\App\Projucer.exe") {
-                $projucerPath = "$juceDir\extras\Projucer\Builds\VisualStudio2022\x64\Release\App\Projucer.exe"
-                Write-Host "Projucer built successfully at: $projucerPath"
-                & $projucerPath --resave "ultraDYN.jucer"
-                Write-Host "Project files regenerated successfully"
-              } else {
-                Write-Host "Warning: Projucer build failed, skipping project regeneration"
-                Write-Host "This may cause build failures due to missing JUCE files"
-              }
-            } else {
-              Write-Host "Warning: Could not find or build Projucer, skipping project regeneration"
-              Write-Host "This may cause build failures due to missing JUCE files"
-            }
+            # Update JUCE include paths if they're absolute
+            $headerContent = $headerContent -replace 'JUCE_DIR.*?\\', "JUCE_DIR=$juceDir\"
+            $headerContent = $headerContent -replace 'JUCE_DIR.*?/', "JUCE_DIR=$juceDir/"
+            
+            Set-Content "JuceLibraryCode\JuceHeader.h" $headerContent -NoNewline
+            Write-Host "Updated JUCE paths in JuceHeader.h"
           }
 
       - name: Build project (Windows)
