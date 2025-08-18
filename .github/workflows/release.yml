@@ -132,16 +132,16 @@ jobs:
         if: matrix.os == 'macOS'
         shell: bash
         run: |
-          # macOS build - use ultraDYN.jucer
+          # macOS build - build only VST3 and AU targets
           echo "Building macOS project..."
-          # List available schemes first
-          echo "Available schemes in ultraDYN.xcodeproj:"
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -list
-          # Build VST3 and AU targets separately to avoid AAX
+          
+          # Build VST3 target only
           echo "Building VST3..."
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - VST3" -configuration Release -allowProvisioningUpdates
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - VST3" -configuration Release -allowProvisioningUpdates -skipPackagePluginValidation
+          
+          # Build AU target only  
           echo "Building AU..."
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - AU" -configuration Release -allowProvisioningUpdates
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - AU" -configuration Release -allowProvisioningUpdates -skipPackagePluginValidation
 
       - name: Fix JUCE paths (Windows)
         if: matrix.os == 'Windows'
