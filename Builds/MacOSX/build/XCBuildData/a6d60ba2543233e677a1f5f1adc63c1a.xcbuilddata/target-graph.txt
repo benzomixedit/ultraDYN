@@ -1,0 +1,19 @@
+Target dependency graph (7 targets)
+Target 'ultraDYN - All' in project 'ultraDYN'
+➜ Explicit dependency on target 'ultraDYN - VST3' in project 'ultraDYN'
+➜ Explicit dependency on target 'ultraDYN - AAX' in project 'ultraDYN'
+➜ Explicit dependency on target 'ultraDYN - AU' in project 'ultraDYN'
+➜ Explicit dependency on target 'ultraDYN - Standalone Plugin' in project 'ultraDYN'
+➜ Explicit dependency on target 'ultraDYN - Shared Code' in project 'ultraDYN'
+➜ Explicit dependency on target 'ultraDYN - VST3 Manifest Helper' in project 'ultraDYN'
+Target 'ultraDYN - Standalone Plugin' in project 'ultraDYN'
+➜ Explicit dependency on target 'ultraDYN - Shared Code' in project 'ultraDYN'
+Target 'ultraDYN - AU' in project 'ultraDYN'
+➜ Explicit dependency on target 'ultraDYN - Shared Code' in project 'ultraDYN'
+Target 'ultraDYN - AAX' in project 'ultraDYN'
+➜ Explicit dependency on target 'ultraDYN - Shared Code' in project 'ultraDYN'
+Target 'ultraDYN - VST3' in project 'ultraDYN'
+➜ Explicit dependency on target 'ultraDYN - Shared Code' in project 'ultraDYN'
+➜ Explicit dependency on target 'ultraDYN - VST3 Manifest Helper' in project 'ultraDYN'
+Target 'ultraDYN - VST3 Manifest Helper' in project 'ultraDYN' (no dependencies)
+Target 'ultraDYN - Shared Code' in project 'ultraDYN' (no dependencies)
