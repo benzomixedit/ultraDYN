@@ -121,17 +121,20 @@ jobs:
           security import certificate.p12 -k build.keychain -P password -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
 
-      - name: Build project (macOS)
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          # macOS build - use ultraDYN.jucer
-          echo "Building macOS project..."
-          # List available schemes first
-          echo "Available schemes in ultraDYN.xcodeproj:"
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -list
-          # Build using the "ultraDYN - All" scheme which builds all targets
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme "ultraDYN - All" -configuration ${{ github.event.inputs.config }} -derivedDataPath build -allowProvisioningUpdates
+                      - name: Build project (macOS)
+          if: runner.os == 'macOS'
+          shell: bash
+          run: |
+            # macOS build - use ultraDYN.jucer
+            echo "Building macOS project..."
+            # List available schemes first
+            echo "Available schemes in ultraDYN.xcodeproj:"
+            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -list
+            # Build VST3 and AU targets separately to avoid AAX
+            echo "Building VST3..."
+            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - VST3" -configuration ${{ github.event.inputs.config }} -derivedDataPath build -allowProvisioningUpdates
+            echo "Building AU..."
+            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - AU" -configuration ${{ github.event.inputs.config }} -derivedDataPath build -allowProvisioningUpdates
 
       - name: Fix JUCE paths in project files (Windows)
         if: runner.os == 'Windows'

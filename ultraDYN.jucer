@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <JUCERPROJECT id="SOIvVh" name="ultraDYN" projectType="audioplug" useAppConfig="0"
-              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" pluginFormats="buildAAX,buildAU,buildStandalone,buildVST3">
+              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" pluginFormats="buildAU,buildVST3">
   <MAINGROUP id="YlPNSP" name="ultraDYN">
     <GROUP id="{44F02CA4-CF5F-DB71-AC85-ED02A1BABF37}" name="Source">
       <FILE id="Qu1lQi" name="PluginProcessor.cpp" compile="1" resource="0"

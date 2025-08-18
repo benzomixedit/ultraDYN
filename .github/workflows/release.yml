@@ -121,8 +121,11 @@ jobs:
           # List available schemes first
           echo "Available schemes in ultraDYN.xcodeproj:"
           xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -list
-          # Build using the "ultraDYN - All" scheme which builds all targets
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme "ultraDYN - All" -configuration Release -derivedDataPath build -allowProvisioningUpdates
+          # Build VST3 and AU targets separately to avoid AAX
+          echo "Building VST3..."
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - VST3" -configuration Release -derivedDataPath build -allowProvisioningUpdates
+          echo "Building AU..."
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - AU" -configuration Release -derivedDataPath build -allowProvisioningUpdates
 
       - name: Fix JUCE paths in project files (Windows)
         if: matrix.os == 'Windows'
