@@ -163,6 +163,10 @@ jobs:
             }
           }
           
+          # Set JUCE_PATH environment variable for MSBuild
+          $env:JUCE_PATH = $juceDir
+          Write-Host "Set JUCE_PATH environment variable to: $env:JUCE_PATH"
+          
           # Check if project files exist
           if (Test-Path "Builds\VisualStudio2022\ultraDYN.vcxproj") {
             Write-Host "Found existing project files, updating JUCE paths..."
@@ -170,9 +174,8 @@ jobs:
             # Read the project file
             $projectContent = Get-Content "Builds\VisualStudio2022\ultraDYN.vcxproj" -Raw
             
-            # Replace JUCE paths with the correct CI environment path
-            $projectContent = $projectContent -replace 'JUCE_DIR.*?\\', "JUCE_DIR=$juceDir\"
-            $projectContent = $projectContent -replace 'JUCE_DIR.*?/', "JUCE_DIR=$juceDir/"
+            # Replace JUCE_PATH references with the correct CI environment path
+            $projectContent = $projectContent -replace '\$\(JUCE_PATH\)', $juceDir
             
             # Write back the updated project file
             Set-Content "Builds\VisualStudio2022\ultraDYN.vcxproj" $projectContent -NoNewline
@@ -187,12 +190,8 @@ jobs:
             Write-Host "Checking JuceHeader.h..."
             $headerContent = Get-Content "JuceLibraryCode\JuceHeader.h" -Raw
             
-            # Update JUCE include paths if they're absolute
-            $headerContent = $headerContent -replace 'JUCE_DIR.*?\\', "JUCE_DIR=$juceDir\"
-            $headerContent = $headerContent -replace 'JUCE_DIR.*?/', "JUCE_DIR=$juceDir/"
-            
-            Set-Content "JuceLibraryCode\JuceHeader.h" $headerContent -NoNewline
-            Write-Host "Updated JUCE paths in JuceHeader.h"
+            # JuceHeader.h uses relative includes, so we don't need to modify it
+            Write-Host "JuceHeader.h uses relative includes - no modification needed"
           }
 
       - name: Build project (Windows)
