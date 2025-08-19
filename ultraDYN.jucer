@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <JUCERPROJECT id="SOIvVh" name="ultraDYN" projectType="audioplug" useAppConfig="0"
-              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" pluginFormats="buildAU,buildVST3">
+              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" pluginFormats="buildAAX,buildAU,buildStandalone,buildVST3">
   <MAINGROUP id="YlPNSP" name="ultraDYN">
     <GROUP id="{44F02CA4-CF5F-DB71-AC85-ED02A1BABF37}" name="Source">
       <FILE id="Qu1lQi" name="PluginProcessor.cpp" compile="1" resource="0"
@@ -102,5 +102,7 @@
   <PLUGINFORMATS>
     <PLUGINFORMAT format="buildAU" pluginName="ultraDYN" pluginDesc="ultraDYN" pluginManufacturer="Benzo Audio" pluginManufacturerCode="0x4d616e75" pluginCode="0x536f6976" pluginChannelConfigs="{1, 1}, {2, 2}" pluginIsSynth="0" pluginWantsMidiIn="0" pluginProducesMidiOut="0" pluginIsMidiEffectPlugin="0" pluginEditorRequiresKeys="0" pluginAUExportPrefix="ultraDYNAU" pluginRTASCategory="" aaxIdentifier="com.benzoaudio.ultraDYN" jucerVersion="8.0.8"/>
     <PLUGINFORMAT format="buildVST3" pluginName="ultraDYN" pluginDesc="ultraDYN" pluginManufacturer="Benzo Audio" pluginManufacturerCode="0x4d616e75" pluginCode="0x536f6976" pluginChannelConfigs="{1, 1}, {2, 2}" pluginIsSynth="0" pluginWantsMidiIn="0" pluginProducesMidiOut="0" pluginIsMidiEffectPlugin="0" pluginEditorRequiresKeys="0" pluginAUExportPrefix="ultraDYNAU" pluginRTASCategory="" aaxIdentifier="com.benzoaudio.ultraDYN" jucerVersion="8.0.8"/>
+    <PLUGINFORMAT format="buildAAX" pluginName="ultraDYN" pluginDesc="ultraDYN" pluginManufacturer="Benzo Audio" pluginManufacturerCode="0x4d616e75" pluginCode="0x536f6976" pluginChannelConfigs="{1, 1}, {2, 2}" pluginIsSynth="0" pluginWantsMidiIn="0" pluginProducesMidiOut="0" pluginIsMidiEffectPlugin="0" pluginEditorRequiresKeys="0" pluginAUExportPrefix="ultraDYNAU" pluginRTASCategory="" aaxIdentifier="com.benzoaudio.ultraDYN" jucerVersion="8.0.8"/>
+    <PLUGINFORMAT format="buildStandalone" pluginName="ultraDYN" pluginDesc="ultraDYN" pluginManufacturer="Benzo Audio" pluginManufacturerCode="0x4d616e75" pluginCode="0x536f6976" pluginChannelConfigs="{1, 1}, {2, 2}" pluginIsSynth="0" pluginWantsMidiIn="0" pluginProducesMidiOut="0" pluginIsMidiEffectPlugin="0" pluginEditorRequiresKeys="0" pluginAUExportPrefix="ultraDYNAU" pluginRTASCategory="" aaxIdentifier="com.benzoaudio.ultraDYN" jucerVersion="8.0.8"/>
   </PLUGINFORMATS>
 </JUCERPROJECT>
