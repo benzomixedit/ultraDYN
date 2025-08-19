@@ -68,9 +68,47 @@ jobs:
             Builds/VisualStudio2022/x64/${{ matrix.config }}/
           key: build-${{ runner.os }}-${{ matrix.config }}-${{ hashFiles('**/*.cpp', '**/*.h', '**/*.jucer') }}
 
+      - name: Build Projucer (macOS)
+        if: matrix.os == 'macOS'
+        shell: bash
+        run: |
+          echo "Building Projucer..."
+          xcodebuild -project "$JUCE_DIR/extras/Projucer/Builds/MacOSX/Projucer.xcodeproj" -scheme Projucer -configuration Release -derivedDataPath "$JUCE_DIR/extras/Projucer/Builds/MacOSX/build"
+          PROJUCER_BIN="$JUCE_DIR/extras/Projucer/Builds/MacOSX/build/Build/Products/Release/Projucer.app/Contents/MacOS/Projucer"
+          if [ ! -x "$PROJUCER_BIN" ]; then
+            echo "Projucer binary not found at $PROJUCER_BIN"; ls -R "$JUCE_DIR/extras/Projucer/Builds/MacOSX/build/Build/Products" || true; exit 1
+          fi
+          echo "PROJUCER_BIN=$PROJUCER_BIN" >> $GITHUB_ENV
+
       - name: Setup Visual Studio (Windows)
         if: matrix.os == 'Windows'
         uses: microsoft/setup-msbuild@v1.1
+
+      - name: Build Projucer (Windows)
+        if: matrix.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "Building Projucer..."
+          $projucerSln = Join-Path $env:JUCE_DIR 'extras/Projucer/Builds/VisualStudio2022/Projucer.sln'
+          if (!(Test-Path $projucerSln)) { Write-Error "Projucer solution not found at $projucerSln"; exit 1 }
+          msbuild $projucerSln "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal"
+          $projucerBin = Get-ChildItem -Path (Join-Path $env:JUCE_DIR 'extras/Projucer') -Recurse -Filter Projucer.exe | Select-Object -First 1
+          if ($null -eq $projucerBin) { Write-Error "Projucer.exe not found after build"; exit 1 }
+          echo "PROJUCER_BIN=$($projucerBin.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding ascii
+
+      - name: Configure Projucer module paths and resave project (macOS)
+        if: matrix.os == 'macOS'
+        shell: bash
+        run: |
+          "$PROJUCER_BIN" --set-global-search-path osx defaultJuceModulePath="$JUCE_DIR/modules"
+          "$PROJUCER_BIN" --resave ultraDYN.jucer
+
+      - name: Configure Projucer module paths and resave project (Windows)
+        if: matrix.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "$env:PROJUCER_BIN" --set-global-search-path windows defaultJuceModulePath="$env:JUCE_DIR\modules"
+          & "$env:PROJUCER_BIN" --resave ultraDYN.jucer
 
       - name: Check project files
         shell: bash
@@ -277,7 +315,5 @@ jobs:
           path: |
             build/Build/Products/${{ matrix.config }}/*.vst3
             build/Build/Products/${{ matrix.config }}/*.component
-            build/Build/Products/${{ matrix.config }}/*.app
             Builds/VisualStudio2022/x64/${{ matrix.config }}/VST3/*.vst3
-            Builds/VisualStudio2022/x64/${{ matrix.config }}/Standalone/*.exe
           retention-days: 30
