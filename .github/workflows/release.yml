@@ -365,8 +365,8 @@ jobs:
         with:
           name: ultraDYN-Windows-${{ github.ref_name }}
           path: |
-            Builds/VisualStudio2022/x64/Release/VST3/*.vst3
-            Builds/VisualStudio2022/x64/Release/Standalone/*.exe
+            Builds/VisualStudio2022/x64/Release/*.dll
+            Builds/VisualStudio2022/x64/Release/*.exe
             ultraDYN-*-Windows.zip
 
   create-release:
