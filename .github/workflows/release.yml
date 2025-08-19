@@ -58,6 +58,47 @@ jobs:
             ${{ github.workspace }}/JuceLibraryCode
           key: juce-${{ env.JUCE_VERSION }}-${{ runner.os }}
 
+      - name: Build Projucer (macOS)
+        if: matrix.os == 'macOS'
+        shell: bash
+        run: |
+          echo "Building Projucer on macOS..."
+          JUCE_DIR="$HOME/juce"
+          xcodebuild -project "$JUCE_DIR/extras/Projucer/Builds/MacOSX/Projucer.xcodeproj" -scheme Projucer -configuration Release
+          PROJUCER_BIN="$JUCE_DIR/extras/Projucer/build/Release/Projucer.app/Contents/MacOS/Projucer"
+          if [ -x "$PROJUCER_BIN" ]; then
+            echo "Running Projucer --resave ultraDYN.jucer"
+            "$PROJUCER_BIN" --resave ultraDYN.jucer || true
+          else
+            echo "Projucer binary not found at $PROJUCER_BIN"
+          fi
+
+      - name: Build Projucer (Windows)
+        if: matrix.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "Building Projucer on Windows..."
+          $juceDir = "C:\Users\runneradmin\juce"
+          if (-not (Test-Path $juceDir)) { $juceDir = "$env:HOME\juce" }
+          $projucerSln = Join-Path $juceDir "extras/Projucer/Builds/VisualStudio2022/Projucer.sln"
+          $possibleMSBuild = @(
+            "msbuild",
+            "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
+            "C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe",
+            "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe"
+          )
+          $msbuildPath = $null
+          foreach ($p in $possibleMSBuild) { if (Get-Command $p -ErrorAction SilentlyContinue) { $msbuildPath = $p; break } }
+          if (-not $msbuildPath) { Write-Error "MSBuild not found"; exit 1 }
+          & $msbuildPath $projucerSln "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal"
+          $projucerExe = Join-Path $juceDir "extras/Projucer/Builds/VisualStudio2022/x64/Release/App/Projucer.exe"
+          if (Test-Path $projucerExe) {
+            Write-Host "Running Projucer --resave ultraDYN.jucer"
+            & $projucerExe --resave ultraDYN.jucer
+          } else {
+            Write-Warning "Projucer.exe not found at $projucerExe"
+          }
+
       - name: Setup Visual Studio (Windows)
         if: matrix.os == 'Windows'
         uses: microsoft/setup-msbuild@v1.1
