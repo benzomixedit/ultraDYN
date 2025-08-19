@@ -28,7 +28,7 @@
 namespace juce
 {
 
-const char juce_compilationDate[] = __DATE__;
-const char juce_compilationTime[] = __TIME__;
+extern const char* const juce_compilationDate = __DATE__;
+extern const char* const juce_compilationTime = __TIME__;
 
 } // namespace juce
