@@ -27,6 +27,48 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup JUCE (macOS)
+        if: matrix.os == 'macOS'
+        shell: bash
+        run: |
+          # Setup JUCE in the expected location for macOS
+          JUCE_DIR="$HOME/JUCE"
+          mkdir -p "$JUCE_DIR"
+          cd "$JUCE_DIR"
+          
+          # Clone JUCE repository
+          git clone --depth 1 --branch ${{ env.JUCE_VERSION }} https://github.com/juce-framework/JUCE.git .
+          
+          # Set JUCE path for the build
+          echo "JUCE_DIR=$JUCE_DIR" >> $GITHUB_ENV
+          
+          # Verify JUCE setup
+          echo "JUCE directory contents:"
+          ls -la
+          echo "JUCE modules directory contents:"
+          ls -la modules/ || echo "modules directory not found"
+
+      - name: Setup JUCE (Windows)
+        if: matrix.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Setup JUCE in the expected location for Windows
+          $juceDir = "$env:USERPROFILE\JUCE"
+          New-Item -ItemType Directory -Force -Path $juceDir
+          Set-Location $juceDir
+          
+          # Clone JUCE repository
+          git clone --depth 1 --branch $env:JUCE_VERSION https://github.com/juce-framework/JUCE.git .
+          
+          # Set JUCE path for the build
+          echo "JUCE_DIR=$juceDir" >> $env:GITHUB_ENV
+          
+          # Verify JUCE setup
+          Write-Host "JUCE directory contents:"
+          Get-ChildItem
+          Write-Host "JUCE modules directory contents:"
+          Get-ChildItem modules -ErrorAction SilentlyContinue
+
       - name: Setup Visual Studio (Windows)
         if: matrix.os == 'Windows'
         uses: microsoft/setup-msbuild@v1.1
