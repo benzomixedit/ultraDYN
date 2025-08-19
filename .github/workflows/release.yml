@@ -73,6 +73,26 @@ jobs:
         if: matrix.os == 'Windows'
         uses: microsoft/setup-msbuild@v1.1
 
+      - name: Fix project paths (macOS)
+        if: matrix.os == 'macOS'
+        shell: bash
+        run: |
+          echo "Fixing project paths for macOS..."
+          # Update Xcode project to use the correct JUCE path
+          sed -i.bak 's|~/JUCE/modules|$HOME/JUCE/modules|g' Builds/MacOSX/ultraDYN.xcodeproj/project.pbxproj
+          echo "Updated Xcode project paths"
+
+      - name: Fix project paths (Windows)
+        if: matrix.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "Fixing project paths for Windows..."
+          # Update Visual Studio project to use the correct JUCE path
+          $content = Get-Content "Builds\VisualStudio2022\ultraDYN.vcxproj" -Raw
+          $content = $content -replace '\$\(JUCE_PATH\)', "$env:USERPROFILE\JUCE"
+          Set-Content "Builds\VisualStudio2022\ultraDYN.vcxproj" $content -NoNewline
+          Write-Host "Updated Visual Studio project paths"
+
       - name: Setup build environment (macOS)
         if: matrix.os == 'macOS'
         shell: bash
