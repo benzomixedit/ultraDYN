@@ -1,0 +1,328 @@
+name: Release Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JUCE
+        shell: bash
+        run: |
+          # Setup JUCE in the expected location
+          JUCE_DIR="$HOME/JUCE"
+          mkdir -p "$JUCE_DIR"
+          cd "$JUCE_DIR"
+          
+          # Clone JUCE repository
+          git clone --depth 1 --branch 8.0.8 https://github.com/juce-framework/JUCE.git .
+          
+          # Set JUCE path for the build
+          echo "JUCE_DIR=$JUCE_DIR" >> $GITHUB_ENV
+          
+          # Verify JUCE setup
+          echo "JUCE directory contents:"
+          ls -la
+          echo "JUCE modules directory contents:"
+          ls -la modules/ || echo "modules directory not found"
+
+      - name: Build Projucer
+        shell: bash
+        run: |
+          echo "Building Projucer..."
+          JUCE_DIR="$HOME/JUCE"
+          cd "$JUCE_DIR/extras/Projucer/Builds/MacOSX"
+          xcodebuild -project Projucer.xcodeproj -target "Projucer - App" -configuration Release
+          echo "Projucer build completed"
+
+      - name: Generate project files
+        shell: bash
+        run: |
+          echo "Generating project files with Projucer..."
+          JUCE_DIR="$HOME/JUCE"
+          PROJUCER_BIN="$JUCE_DIR/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer"
+          
+          if [ -x "$PROJUCER_BIN" ]; then
+            echo "Running Projucer to generate project files..."
+            "$PROJUCER_BIN" --resave "${{ github.workspace }}/ultraDYN.jucer"
+            echo "Project files generated"
+          else
+            echo "Projucer binary not found, using existing project files"
+          fi
+
+      - name: Setup build environment
+        shell: bash
+        run: |
+          # Create self-signed certificate for code signing
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security set-keychain-settings build.keychain
+          
+          # Create certificate
+          openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -subj "/CN=UltraDYN Development"
+          openssl pkcs12 -export -out certificate.p12 -inkey key.pem -in cert.pem -passout pass:password
+          
+          # Import certificate
+          security import certificate.p12 -k build.keychain -P password -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
+
+      - name: Build VST3
+        shell: bash
+        run: |
+          echo "Building VST3 plugin..."
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - VST3" -configuration Release -allowProvisioningUpdates
+
+      - name: Build AU
+        shell: bash
+        run: |
+          echo "Building AU plugin..."
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - AU" -configuration Release -allowProvisioningUpdates
+
+      - name: Build Standalone
+        shell: bash
+        run: |
+          echo "Building Standalone app..."
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - Standalone Plugin" -configuration Release -allowProvisioningUpdates
+
+      - name: Create DMG
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "Creating DMG for version $VERSION"
+          
+          # Install create-dmg
+          brew install create-dmg
+          
+          # Create DMG
+          create-dmg \
+            --volname "UltraDYN $VERSION" \
+            --volicon "Builds/MacOSX/ultraDYN.icns" \
+            --window-pos 200 120 \
+            --window-size 600 300 \
+            --icon-size 100 \
+            --icon "ultraDYN.app" 175 120 \
+            --hide-extension "ultraDYN.app" \
+            --app-drop-link 425 120 \
+            "ultraDYN-$VERSION-macOS.dmg" \
+            "build/Build/Products/Release/"
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ultraDYN-macOS-${{ github.ref_name }}
+          path: |
+            build/Build/Products/Release/*.vst3
+            build/Build/Products/Release/*.component
+            build/Build/Products/Release/*.app
+            ultraDYN-*-macOS.dmg
+
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JUCE
+        shell: pwsh
+        run: |
+          # Setup JUCE in the expected location
+          $juceDir = "$env:USERPROFILE\JUCE"
+          New-Item -ItemType Directory -Force -Path $juceDir
+          Set-Location $juceDir
+          
+          # Clone JUCE repository
+          git clone --depth 1 --branch 8.0.8 https://github.com/juce-framework/JUCE.git .
+          
+          # Set JUCE path for the build
+          echo "JUCE_DIR=$juceDir" >> $env:GITHUB_ENV
+          
+          # Verify JUCE setup
+          Write-Host "JUCE directory contents:"
+          Get-ChildItem
+          Write-Host "JUCE modules directory contents:"
+          Get-ChildItem modules -ErrorAction SilentlyContinue
+
+      - name: Setup Visual Studio
+        uses: microsoft/setup-msbuild@v1.1
+
+      - name: Build Projucer
+        shell: pwsh
+        run: |
+          Write-Host "Building Projucer..."
+          $juceDir = "$env:USERPROFILE\JUCE"
+          $projucerSln = Join-Path $juceDir "extras\Projucer\Builds\VisualStudio2022\Projucer.sln"
+          
+          # Find MSBuild
+          $msbuildPath = $null
+          $possiblePaths = @(
+            "msbuild",
+            "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
+            "C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe",
+            "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe"
+          )
+          
+          foreach ($path in $possiblePaths) {
+            if (Get-Command $path -ErrorAction SilentlyContinue) {
+              $msbuildPath = $path
+              break
+            }
+          }
+          
+          if ($msbuildPath) {
+            Write-Host "Using MSBuild at: $msbuildPath"
+            & $msbuildPath $projucerSln "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal"
+            Write-Host "Projucer build completed"
+          } else {
+            Write-Error "MSBuild not found"
+            exit 1
+          }
+
+      - name: Generate project files
+        shell: pwsh
+        run: |
+          Write-Host "Generating project files with Projucer..."
+          $juceDir = "$env:USERPROFILE\JUCE"
+          $projucerExe = Join-Path $juceDir "extras\Projucer\Builds\VisualStudio2022\x64\Release\App\Projucer.exe"
+          
+          if (Test-Path $projucerExe) {
+            Write-Host "Running Projucer to generate project files..."
+            & $projucerExe --resave ultraDYN.jucer
+            Write-Host "Project files generated"
+          } else {
+            Write-Host "Projucer.exe not found, using existing project files"
+          }
+
+      - name: Build VST3
+        shell: pwsh
+        run: |
+          Write-Host "Building VST3 plugin..."
+          
+          # Find MSBuild
+          $msbuildPath = $null
+          $possiblePaths = @(
+            "msbuild",
+            "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
+            "C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe",
+            "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe"
+          )
+          
+          foreach ($path in $possiblePaths) {
+            if (Get-Command $path -ErrorAction SilentlyContinue) {
+              $msbuildPath = $path
+              break
+            }
+          }
+          
+          if ($msbuildPath) {
+            Write-Host "Using MSBuild at: $msbuildPath"
+            & $msbuildPath "Builds\VisualStudio2022\ultraDYN.sln" "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal"
+          } else {
+            Write-Error "MSBuild not found"
+            exit 1
+          }
+
+      - name: Build Standalone
+        shell: pwsh
+        run: |
+          Write-Host "Building Standalone app..."
+          
+          # Find MSBuild
+          $msbuildPath = $null
+          $possiblePaths = @(
+            "msbuild",
+            "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
+            "C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe",
+            "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe"
+          )
+          
+          foreach ($path in $possiblePaths) {
+            if (Get-Command $path -ErrorAction SilentlyContinue) {
+              $msbuildPath = $path
+              break
+            }
+          }
+          
+          if ($msbuildPath) {
+            Write-Host "Using MSBuild at: $msbuildPath"
+            & $msbuildPath "Builds\VisualStudio2022\ultraDYN.sln" "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal"
+          } else {
+            Write-Error "MSBuild not found"
+            exit 1
+          }
+
+      - name: Create Windows Package
+        shell: pwsh
+        run: |
+          $VERSION = $env:GITHUB_REF -replace 'refs/tags/v', ''
+          Write-Host "Creating Windows package for version $VERSION"
+          
+          # Create a simple zip package
+          New-Item -ItemType Directory -Force -Path "ultraDYN-$VERSION-Windows"
+          
+          # Copy VST3 plugin
+          if (Test-Path "Builds\VisualStudio2022\x64\Release\VST3\ultraDYN.vst3") {
+            Copy-Item -Recurse "Builds\VisualStudio2022\x64\Release\VST3\ultraDYN.vst3" "ultraDYN-$VERSION-Windows\"
+            Write-Host "Copied VST3 plugin"
+          } else {
+            Write-Host "Warning: VST3 plugin not found"
+          }
+          
+          # Copy standalone app
+          if (Test-Path "Builds\VisualStudio2022\x64\Release\Standalone\ultraDYN.exe") {
+            Copy-Item "Builds\VisualStudio2022\x64\Release\Standalone\ultraDYN.exe" "ultraDYN-$VERSION-Windows\"
+            Write-Host "Copied standalone app"
+          } else {
+            Write-Host "Warning: Standalone app not found"
+          }
+          
+          # Create zip file
+          Compress-Archive -Path "ultraDYN-$VERSION-Windows" -DestinationPath "ultraDYN-$VERSION-Windows.zip"
+          Write-Host "Created Windows package: ultraDYN-$VERSION-Windows.zip"
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ultraDYN-Windows-${{ github.ref_name }}
+          path: |
+            Builds/VisualStudio2022/x64/Release/VST3/*.vst3
+            Builds/VisualStudio2022/x64/Release/Standalone/*.exe
+            ultraDYN-*-Windows.zip
+
+  create-release:
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/**/*.vst3
+            artifacts/**/*.component
+            artifacts/**/*.app
+            artifacts/**/*.exe
+            artifacts/**/*.dmg
+            artifacts/**/*.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
