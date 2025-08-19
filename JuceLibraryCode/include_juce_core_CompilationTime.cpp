@@ -29,11 +29,11 @@ namespace juce
 {
 
 #if defined(_MSC_VER)
-__declspec(selectany) const char* const juce_compilationDate = __DATE__;
-__declspec(selectany) const char* const juce_compilationTime = __TIME__;
+extern __declspec(selectany) const char* const juce_compilationDate = __DATE__;
+extern __declspec(selectany) const char* const juce_compilationTime = __TIME__;
 #else
-const char* const juce_compilationDate = __DATE__;
-const char* const juce_compilationTime = __TIME__;
+extern const char* const juce_compilationDate = __DATE__;
+extern const char* const juce_compilationTime = __TIME__;
 #endif
 
 } // namespace juce
