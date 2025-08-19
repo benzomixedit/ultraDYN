@@ -257,13 +257,14 @@ jobs:
           # Add Harfbuzz and Sheenbidi includes to the project
           $harfbuzzInclude = '    <ClCompile Include="..\..\JuceLibraryCode\include_juce_graphics_Harfbuzz.cpp" />'
           $sheenbidiInclude = '    <ClCompile Include="..\..\JuceLibraryCode\include_juce_graphics_Sheenbidi.c" />'
+          $compilationTimeInclude = '    <ClCompile Include="..\..\JuceLibraryCode\include_juce_core_CompilationTime.cpp" />'
           
           # Insert after the last include_juce file
-          $content = $content -replace '(<ClCompile Include="\.\.\\\.\.\\JuceLibraryCode\\include_juce_gui_extra\.cpp" />)', "`$1`n$harfbuzzInclude`n$sheenbidiInclude"
+          $content = $content -replace '(<ClCompile Include="\.\.\\\.\.\\JuceLibraryCode\\include_juce_gui_extra\.cpp" />)', "`$1`n$harfbuzzInclude`n$sheenbidiInclude`n$compilationTimeInclude"
           
           Set-Content "Builds\VisualStudio2022\ultraDYN.vcxproj" $content -NoNewline
           
-          Write-Host "Added Harfbuzz and Sheenbidi files to project"
+          Write-Host "Added Harfbuzz, Sheenbidi, and compilation time files to project"
 
       - name: Build VST3
         shell: pwsh
