@@ -73,6 +73,34 @@ jobs:
         if: matrix.os == 'Windows'
         uses: microsoft/setup-msbuild@v1.1
 
+      - name: Debug project structure (macOS)
+        if: matrix.os == 'macOS'
+        shell: bash
+        run: |
+          echo "=== Debugging project structure ==="
+          echo "Current directory: $(pwd)"
+          echo "Project files:"
+          ls -la Builds/MacOSX/
+          echo "Source files:"
+          ls -la Source/
+          echo "JuceLibraryCode files:"
+          ls -la JuceLibraryCode/ | head -10
+          echo "Available targets:"
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -list
+
+      - name: Debug project structure (Windows)
+        if: matrix.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "=== Debugging project structure ==="
+          Write-Host "Current directory: $(Get-Location)"
+          Write-Host "Project files:"
+          Get-ChildItem Builds\VisualStudio2022\
+          Write-Host "Source files:"
+          Get-ChildItem Source\
+          Write-Host "JuceLibraryCode files:"
+          Get-ChildItem JuceLibraryCode\ | Select-Object -First 10
+
       - name: Setup build environment (macOS)
         if: matrix.os == 'macOS'
         shell: bash
@@ -97,17 +125,13 @@ jobs:
         run: |
           echo "Building macOS project..."
           
-          # List available targets
-          echo "Available targets:"
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -list
-          
           # Build VST3 target
           echo "Building VST3..."
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - VST3" -configuration Release -allowProvisioningUpdates
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - VST3" -configuration Release -allowProvisioningUpdates -verbose
           
           # Build AU target
           echo "Building AU..."
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - AU" -configuration Release -allowProvisioningUpdates
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - AU" -configuration Release -allowProvisioningUpdates -verbose
 
       - name: Build project (Windows)
         if: matrix.os == 'Windows'
@@ -133,11 +157,32 @@ jobs:
           
           if ($msbuildPath) {
             Write-Host "Using MSBuild at: $msbuildPath"
-            & $msbuildPath "Builds\VisualStudio2022\ultraDYN.sln" "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal"
+            & $msbuildPath "Builds\VisualStudio2022\ultraDYN.sln" "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:detailed"
           } else {
             Write-Error "MSBuild not found"
             exit 1
           }
+
+      - name: Debug build outputs (macOS)
+        if: matrix.os == 'macOS'
+        shell: bash
+        run: |
+          echo "=== Debugging build outputs ==="
+          echo "Checking for build outputs..."
+          find . -name "*.vst3" -o -name "*.component" -o -name "*.app" 2>/dev/null || echo "No build outputs found"
+          echo "Build directory contents:"
+          ls -la build/ 2>/dev/null || echo "build directory not found"
+          ls -la Builds/MacOSX/build/ 2>/dev/null || echo "Builds/MacOSX/build directory not found"
+
+      - name: Debug build outputs (Windows)
+        if: matrix.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "=== Debugging build outputs ==="
+          Write-Host "Checking for build outputs..."
+          Get-ChildItem -Recurse -Include "*.vst3", "*.exe" -ErrorAction SilentlyContinue
+          Write-Host "Build directory contents:"
+          Get-ChildItem "Builds\VisualStudio2022\x64\Release\" -ErrorAction SilentlyContinue
 
       - name: Create macOS package
         if: matrix.os == 'macOS'
@@ -152,15 +197,23 @@ jobs:
           # Copy VST3 plugin
           if [ -d "build/Build/Products/Release/ultraDYN.vst3" ]; then
             cp -r "build/Build/Products/Release/ultraDYN.vst3" "ultraDYN-$VERSION-macOS/"
+            echo "Copied VST3 from build/Build/Products/Release/"
           elif [ -d "Builds/MacOSX/build/Build/Products/Release/ultraDYN.vst3" ]; then
             cp -r "Builds/MacOSX/build/Build/Products/Release/ultraDYN.vst3" "ultraDYN-$VERSION-macOS/"
+            echo "Copied VST3 from Builds/MacOSX/build/Build/Products/Release/"
+          else
+            echo "Warning: VST3 plugin not found"
           fi
           
           # Copy AU plugin
           if [ -d "build/Build/Products/Release/ultraDYN.component" ]; then
             cp -r "build/Build/Products/Release/ultraDYN.component" "ultraDYN-$VERSION-macOS/"
+            echo "Copied AU from build/Build/Products/Release/"
           elif [ -d "Builds/MacOSX/build/Build/Products/Release/ultraDYN.component" ]; then
             cp -r "Builds/MacOSX/build/Build/Products/Release/ultraDYN.component" "ultraDYN-$VERSION-macOS/"
+            echo "Copied AU from Builds/MacOSX/build/Build/Products/Release/"
+          else
+            echo "Warning: AU plugin not found"
           fi
           
           # Create zip file
@@ -180,11 +233,17 @@ jobs:
           # Copy VST3 plugin
           if [ -d "Builds/VisualStudio2022/x64/Release/VST3/ultraDYN.vst3" ]; then
             cp -r "Builds/VisualStudio2022/x64/Release/VST3/ultraDYN.vst3" "ultraDYN-$VERSION-Windows/"
+            echo "Copied VST3 plugin"
+          else
+            echo "Warning: VST3 plugin not found"
           fi
           
           # Copy standalone app
           if [ -f "Builds/VisualStudio2022/x64/Release/Standalone/ultraDYN.exe" ]; then
             cp "Builds/VisualStudio2022/x64/Release/Standalone/ultraDYN.exe" "ultraDYN-$VERSION-Windows/"
+            echo "Copied standalone app"
+          else
+            echo "Warning: Standalone app not found"
           fi
           
           # Create zip file
