@@ -64,11 +64,14 @@ jobs:
         run: |
           echo "Building Projucer on macOS..."
           JUCE_DIR="$HOME/juce"
-          xcodebuild -project "$JUCE_DIR/extras/Projucer/Builds/MacOSX/Projucer.xcodeproj" -scheme Projucer -configuration Release
-          PROJUCER_BIN="$JUCE_DIR/extras/Projucer/build/Release/Projucer.app/Contents/MacOS/Projucer"
+          echo "Checking available schemes:"
+          xcodebuild -project "$JUCE_DIR/extras/Projucer/Builds/MacOSX/Projucer.xcodeproj" -list
+          echo "Building Projucer with target instead of scheme:"
+          xcodebuild -project "$JUCE_DIR/extras/Projucer/Builds/MacOSX/Projucer.xcodeproj" -target "Projucer" -configuration Release
+          PROJUCER_BIN="$JUCE_DIR/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer"
           if [ -x "$PROJUCER_BIN" ]; then
             echo "Running Projucer --resave ultraDYN.jucer"
-            "$PROJUCER_BIN" --resave ultraDYN.jucer || true
+            "$PROJUCER_BIN" --resave "${{ github.workspace }}/ultraDYN.jucer" || true
           else
             echo "Projucer binary not found at $PROJUCER_BIN"
           fi
