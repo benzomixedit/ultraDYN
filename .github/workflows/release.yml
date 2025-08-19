@@ -246,42 +246,24 @@ jobs:
           
           Write-Host "Fixed Harfbuzz and Sheenbidi includes"
 
-      - name: Build Harfbuzz and Sheenbidi libraries
+      - name: Add Harfbuzz and Sheenbidi to project
         shell: pwsh
         run: |
-          Write-Host "Building Harfbuzz and Sheenbidi libraries..."
+          Write-Host "Adding Harfbuzz and Sheenbidi files to project..."
           
-          # Set JUCE path environment variable
-          $juceDir = "$env:USERPROFILE\JUCE"
-          $env:JUCE_PATH = $juceDir
+          # Read the project file
+          $content = Get-Content "Builds\VisualStudio2022\ultraDYN.vcxproj" -Raw
           
-          # Find MSBuild
-          $msbuildPath = $null
-          $possiblePaths = @(
-            "msbuild",
-            "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
-            "C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe",
-            "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe"
-          )
+          # Add Harfbuzz and Sheenbidi includes to the project
+          $harfbuzzInclude = '    <ClCompile Include="..\..\JuceLibraryCode\include_juce_graphics_Harfbuzz.cpp" />'
+          $sheenbidiInclude = '    <ClCompile Include="..\..\JuceLibraryCode\include_juce_graphics_Sheenbidi.c" />'
           
-          foreach ($path in $possiblePaths) {
-            if (Get-Command $path -ErrorAction SilentlyContinue) {
-              $msbuildPath = $path
-              break
-            }
-          }
+          # Insert after the last include_juce file
+          $content = $content -replace '(<ClCompile Include="\.\.\\\.\.\\JuceLibraryCode\\include_juce_gui_extra\.cpp" />)', "`$1`n$harfbuzzInclude`n$sheenbidiInclude"
           
-          if ($msbuildPath) {
-            Write-Host "Using MSBuild at: $msbuildPath"
-            
-            # Build the shared code project first (which includes Harfbuzz and Sheenbidi)
-            & $msbuildPath "Builds\VisualStudio2022\ultraDYN_SharedCode.vcxproj" "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal"
-            
-            Write-Host "Built shared code libraries"
-          } else {
-            Write-Error "MSBuild not found"
-            exit 1
-          }
+          Set-Content "Builds\VisualStudio2022\ultraDYN.vcxproj" $content -NoNewline
+          
+          Write-Host "Added Harfbuzz and Sheenbidi files to project"
 
       - name: Build VST3
         shell: pwsh
