@@ -1,5 +1,4 @@
 #include "PluginProcessor.h"
-#include "PluginEditor.h"
 
 //==============================================================================
 CompressorPluginAudioProcessor::CompressorPluginAudioProcessor()
