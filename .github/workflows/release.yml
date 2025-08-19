@@ -392,8 +392,9 @@ jobs:
             artifacts/ultraDYN-macOS-*/**/*.vst3
             artifacts/ultraDYN-macOS-*/**/*.component
             artifacts/ultraDYN-macOS-*/**/*.app
-            artifacts/ultraDYN-Windows-*/**/*.exe
             artifacts/ultraDYN-macOS-*/**/*.dmg
+            artifacts/ultraDYN-Windows-*/**/*.dll
+            artifacts/ultraDYN-Windows-*/**/*.exe
             artifacts/ultraDYN-Windows-*/**/*.zip
           generate_release_notes: true
           draft: false
