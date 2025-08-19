@@ -95,7 +95,6 @@
     <ClCompile Include="..\..\JuceLibraryCode\include_juce_audio_devices.cpp" />
     <ClCompile Include="..\..\JuceLibraryCode\include_juce_audio_formats.cpp" />
     <ClCompile Include="..\..\JuceLibraryCode\include_juce_audio_plugin_client_VST3.cpp" />
-    <ClCompile Include="..\..\JuceLibraryCode\include_juce_audio_processors.cpp" />
     <ClCompile Include="..\..\JuceLibraryCode\include_juce_core.cpp" />
     <ClCompile Include="..\..\JuceLibraryCode\include_juce_data_structures.cpp" />
     <ClCompile Include="..\..\JuceLibraryCode\include_juce_dsp.cpp" />
@@ -104,7 +103,7 @@
   </ItemGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>..\..\JuceLibraryCode;..\..\modules;..\..\modules\juce_core\system;..\..\modules\juce_audio_basics;..\..\modules\juce_audio_devices;..\..\modules\juce_audio_formats;..\..\modules\juce_audio_plugin_client;..\..\modules\juce_audio_processors;..\..\modules\juce_core;..\..\modules\juce_data_structures;..\..\modules\juce_dsp;..\..\modules\juce_events;$(JUCE_PATH)\modules;$(JUCE_PATH)\modules\juce_core\system;$(JUCE_PATH)\modules\juce_audio_basics;$(JUCE_PATH)\modules\juce_audio_devices;$(JUCE_PATH)\modules\juce_audio_formats;$(JUCE_PATH)\modules\juce_audio_plugin_client;$(JUCE_PATH)\modules\juce_audio_processors;$(JUCE_PATH)\modules\juce_core;$(JUCE_PATH)\modules\juce_data_structures;$(JUCE_PATH)\modules\juce_dsp;$(JUCE_PATH)\modules\juce_events;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\JuceLibraryCode;..\..\modules;..\..\modules\juce_core\system;..\..\modules\juce_audio_basics;..\..\modules\juce_audio_devices;..\..\modules\juce_audio_formats;..\..\modules\juce_audio_plugin_client;..\..\modules\juce_core;..\..\modules\juce_data_structures;..\..\modules\juce_dsp;..\..\modules\juce_events;$(JUCE_PATH)\modules;$(JUCE_PATH)\modules\juce_core\system;$(JUCE_PATH)\modules\juce_audio_basics;$(JUCE_PATH)\modules\juce_audio_devices;$(JUCE_PATH)\modules\juce_audio_formats;$(JUCE_PATH)\modules\juce_audio_plugin_client;$(JUCE_PATH)\modules\juce_core;$(JUCE_PATH)\modules\juce_data_structures;$(JUCE_PATH)\modules\juce_dsp;$(JUCE_PATH)\modules\juce_events;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>JUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1;JUCE_DISPLAY_SPLASH_SCREEN=0;JUCE_REPORT_APP_USAGE=0;JUCE_STRICT_REFCOUNTEDPOINTER=1;JUCE_USER_MODULE_SETTINGS_INCLUDED=1;JUCE_USE_HARFBUZZ=0;JUCE_USE_SHEENBIDI=0;JUCE_USE_FREETYPE=0;JUCE_USE_CORETEXT_LAYOUT=0;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>

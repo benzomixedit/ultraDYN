@@ -20,10 +20,10 @@ public:
 
     //==============================================================================
     juce::AudioProcessorEditor* createEditor() override;
-    bool hasEditor() const override { return true; }
+    bool hasEditor() const override { return false; } // Headless plugin
 
     //==============================================================================
-    const juce::String getName() const override { return "SidechainEQCompressor"; }
+    const juce::String getName() const override { return "ultraDYN"; }
 
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
@@ -42,16 +42,59 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
-    // Public API for UI
-    float getGainReduction() const noexcept { return currentGRdB.load(); } // positive dB value (e.g., 6.2)
+    // Public API for parameters
+    float getGainReduction() const noexcept { return currentGRdB.load(); }
     float getInputLevel() const noexcept { return inputLevel; }
     float getOutputLevel() const noexcept { return outputLevel; }
-    float getUpwardsGain() const noexcept { return currentUpwardsGaindB.load(); } // positive dB value (e.g., 3.1)
-    bool isDownwardsBypassed() const noexcept { return apvts.getRawParameterValue("DOWNWARDS_BYPASS")->load() > 0.5f; }
-    bool isUpwardsBypassed() const noexcept { return apvts.getRawParameterValue("UPWARDS_BYPASS")->load() > 0.5f; }
+    float getUpwardsGain() const noexcept { return currentUpwardsGaindB.load(); }
+    bool isDownwardsBypassed() const noexcept { return downwardsBypass; }
+    bool isUpwardsBypassed() const noexcept { return upwardsBypass; }
 
-    juce::AudioProcessorValueTreeState& getAPVTS() noexcept { return apvts; }
-    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    // Parameter getters
+    float getInputGain() const { return inputGain; }
+    float getOutputGain() const { return outputGain; }
+    float getGlobalMix() const { return globalMix; }
+    float getThreshold() const { return threshold; }
+    float getRatio() const { return ratio; }
+    float getAttack() const { return attack; }
+    float getRelease() const { return release; }
+    float getKnee() const { return knee; }
+    float getMix() const { return mix; }
+    float getDownwardsOutput() const { return downwardsOutput; }
+    bool getVocalMode() const { return vocalMode; }
+    bool getDrumbusMode() const { return drumbusMode; }
+    float getUpwardsThreshold() const { return upwardsThreshold; }
+    float getUpwardsRatio() const { return upwardsRatio; }
+    float getUpwardsAttack() const { return upwardsAttack; }
+    float getUpwardsRelease() const { return upwardsRelease; }
+    float getUpwardsKnee() const { return upwardsKnee; }
+    float getUpwardsMix() const { return upwardsMix; }
+    float getUpwardsOutput() const { return upwardsOutput; }
+    bool getUpwardsFirst() const { return upwardsFirst; }
+
+    // Parameter setters
+    void setInputGain(float value) { inputGain = value; }
+    void setOutputGain(float value) { outputGain = value; }
+    void setGlobalMix(float value) { globalMix = value; }
+    void setThreshold(float value) { threshold = value; }
+    void setRatio(float value) { ratio = value; }
+    void setAttack(float value) { attack = value; }
+    void setRelease(float value) { release = value; }
+    void setKnee(float value) { knee = value; }
+    void setMix(float value) { mix = value; }
+    void setDownwardsOutput(float value) { downwardsOutput = value; }
+    void setVocalMode(bool value) { vocalMode = value; }
+    void setDrumbusMode(bool value) { drumbusMode = value; }
+    void setUpwardsThreshold(float value) { upwardsThreshold = value; }
+    void setUpwardsRatio(float value) { upwardsRatio = value; }
+    void setUpwardsAttack(float value) { upwardsAttack = value; }
+    void setUpwardsRelease(float value) { upwardsRelease = value; }
+    void setUpwardsKnee(float value) { upwardsKnee = value; }
+    void setUpwardsMix(float value) { upwardsMix = value; }
+    void setUpwardsOutput(float value) { upwardsOutput = value; }
+    void setUpwardsFirst(bool value) { upwardsFirst = value; }
+    void setDownwardsBypass(bool value) { downwardsBypass = value; }
+    void setUpwardsBypass(bool value) { upwardsBypass = value; }
 
 private:
     //==============================================================================
@@ -96,15 +139,34 @@ private:
     };
 
     // Vocal mode and drumbus mode for sidechain EQ
-    bool vocalModeEnabled = false;
-    bool drumbusModeEnabled = false;
+    bool vocalMode = false;
+    bool drumbusMode = false;
     
     // Level tracking for meters
     float inputLevel = -60.0f;
     float outputLevel = -60.0f;
 
     // Parameters
-    juce::AudioProcessorValueTreeState apvts { *this, nullptr, "PARAMS", createParameterLayout() };
+    float inputGain = 0.0f;
+    float outputGain = 0.0f;
+    float globalMix = 100.0f;
+    float threshold = -24.0f;
+    float ratio = 4.0f;
+    float attack = 10.0f;
+    float release = 100.0f;
+    float knee = 6.0f;
+    float mix = 100.0f;
+    float downwardsOutput = 0.0f;
+    bool downwardsBypass = false;
+    float upwardsThreshold = -40.0f;
+    float upwardsRatio = 2.0f;
+    float upwardsAttack = 5.0f;
+    float upwardsRelease = 50.0f;
+    float upwardsKnee = 3.0f;
+    float upwardsMix = 100.0f;
+    float upwardsOutput = 0.0f;
+    bool upwardsBypass = false;
+    bool upwardsFirst = false;
 
     // Sidechain EQ for detector path (peak @ 1.5 kHz)
     Biquad scEQ;
@@ -126,22 +188,22 @@ private:
     float upwardsAttackCoeff = 0.0f;
     float upwardsReleaseCoeff = 0.0f;
     std::atomic<float> currentUpwardsGaindB { 0.0f }; // store as positive dB gain
-    bool upwardsInitialRamp = true; // Track if we're in initial ramp mode
-    int upwardsStartupDelay = 0; // Delay counter to prevent immediate processing
-    bool audioIsActive = false; // Track if audio is currently being processed
-    int audioInactiveCounter = 0; // Counter for detecting when audio stops
-    static const int ACTIVATION_DELAY_SAMPLES = 441; // 10ms at 44.1kHz
-    static const int DEACTIVATION_THRESHOLD = 2205; // 50ms of silence to deactivate
 
-    // Scratch buffers
+    // Processing buffers
     juce::AudioBuffer<float> wetBuffer;
-    juce::AudioBuffer<float> scBuffer; // mono detector buffer
+    juce::AudioBuffer<float> scBuffer;
 
-    // Helpers
-    void updateSidechainEQ();
+    // Audio state tracking
+    bool audioIsActive = false;
+    int audioInactiveCounter = 0;
+    bool upwardsInitialRamp = true;
+    int upwardsStartupDelay = 0;
+
+    // Helper functions
     void updateTimeConstants();
-    float computeGain (float scSample) noexcept; // returns linear gain for downwards compressor
-    float computeUpwardsGain (float scSample) noexcept; // returns linear gain for upwards compressor
+    void updateSidechainEQ();
+    float processDownwardsCompressor(float input, int channel);
+    float processUpwardsCompressor(float input, int channel);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CompressorPluginAudioProcessor)
 };

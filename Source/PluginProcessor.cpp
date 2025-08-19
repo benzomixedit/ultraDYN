@@ -11,10 +11,6 @@ CompressorPluginAudioProcessor::CompressorPluginAudioProcessor()
 #endif
 )
 {
-    // Oversampling disabled to prevent crashes
-    // oversampling = nullptr;
-    // oversamplingEnabled = false;
-    
     // Initialize upwards compressor state variables to prevent audio pops
     upwardsEnv = 1.0e-12f; // Small non-zero value to prevent division by zero
     upwardsSmoothGain = 1.0f;
@@ -62,27 +58,20 @@ void CompressorPluginAudioProcessor::prepareToPlay (double sampleRate, int sampl
 
 void CompressorPluginAudioProcessor::releaseResources() 
 {
-    // Oversampling disabled to prevent crashes
-    // oversampling = nullptr;
+    // Nothing to do here
 }
 
 void CompressorPluginAudioProcessor::updateTimeConstants()
 {
-    const float attackMs  = apvts.getRawParameterValue ("ATTACK")->load();
-    const float releaseMs = apvts.getRawParameterValue ("RELEASE")->load();
     const double sr = juce::jmax (1.0, getSampleRate());
     // tiny +1 inside to avoid zero divisions in pathological cases
-    attackCoeff  = std::exp (-1.0f / ((float) (attackMs  * 0.001 * sr) + 1.0f));
-    releaseCoeff = std::exp (-1.0f / ((float) (releaseMs * 0.001 * sr) + 1.0f));
+    attackCoeff  = std::exp (-1.0f / ((float) (attack  * 0.001 * sr) + 1.0f));
+    releaseCoeff = std::exp (-1.0f / ((float) (release * 0.001 * sr) + 1.0f));
 
     // Upwards compressor time constants
-    const float upwardsAttackMs  = apvts.getRawParameterValue ("UPWARDS_ATTACK")->load();
-    const float upwardsReleaseMs = apvts.getRawParameterValue ("UPWARDS_RELEASE")->load();
-    upwardsAttackCoeff  = std::exp (-1.0f / ((float) (upwardsAttackMs  * 0.001 * sr) + 1.0f));
-    upwardsReleaseCoeff = std::exp (-1.0f / ((float) (upwardsReleaseMs * 0.001 * sr) + 1.0f));
+    upwardsAttackCoeff  = std::exp (-1.0f / ((float) (upwardsAttack  * 0.001 * sr) + 1.0f));
+    upwardsReleaseCoeff = std::exp (-1.0f / ((float) (upwardsRelease * 0.001 * sr) + 1.0f));
 }
-
-
 
 void CompressorPluginAudioProcessor::updateSidechainEQ()
 {
@@ -91,128 +80,125 @@ void CompressorPluginAudioProcessor::updateSidechainEQ()
     const double freq = 1500.0;
     const float  q    = 0.7071f; // wide, musical Q
     
-    if (vocalModeEnabled)
+    if (vocalMode)
     {
         // Vocal mode: threshold-coupled peak gain, up to +5 dB as threshold lowers
         const float thresholdMin = -60.0f;
         const float thresholdMax = 0.0f;
-        const float thr = apvts.getRawParameterValue ("THRESHOLD")->load();
-        const float tNorm = juce::jlimit (0.0f, 1.0f, (thresholdMax - thr) / (thresholdMax - thresholdMin));
-        const float peakDb = tNorm * 5.0f; // 0 .. +5 dB
-        scEQ.setPeak (sr, freq, q, peakDb);
+        const float thr = threshold;
+        const float normalizedThr = (thr - thresholdMin) / (thresholdMax - thresholdMin);
+        const float peakGain = normalizedThr * 5.0f; // 0 to +5 dB
+        scEQ.setPeak (sr, freq, q, peakGain);
     }
-    else if (drumbusModeEnabled)
+    else if (drumbusMode)
     {
-        // Drumbus mode: threshold-coupled peak cut, up to -5 dB as threshold lowers
-        const float thresholdMin = -60.0f;
-        const float thresholdMax = 0.0f;
-        const float thr = apvts.getRawParameterValue ("THRESHOLD")->load();
-        const float tNorm = juce::jlimit (0.0f, 1.0f, (thresholdMax - thr) / (thresholdMax - thresholdMin));
-        const float peakDb = tNorm * -5.0f; // 0 .. -5 dB
-        scEQ.setPeak (sr, freq, q, peakDb);
+        // Drumbus mode: fixed cut at -3 dB to reduce harshness
+        scEQ.setPeak (sr, freq, q, -3.0f);
     }
     else
     {
-        // Normal mode: no sidechain EQ boost
+        // Normal mode: no EQ
         scEQ.setPeak (sr, freq, q, 0.0f);
     }
 }
 
-float CompressorPluginAudioProcessor::computeGain (float scSample) noexcept
+float CompressorPluginAudioProcessor::processDownwardsCompressor(float input, int channel)
 {
-    // RMS detector with optimized smoothing to reduce aliasing
-    const float x2 = scSample * scSample;
-    env = x2 + (env - x2) * 0.99f; // Faster response, less smoothing
+    // Sidechain EQ processing (mono detector)
+    float scSample = scEQ.process (input);
     
-    // Ensure envelope doesn't get stuck at zero
-    if (env < 1.0e-12f) env = 1.0e-12f;
+    // RMS envelope follower
+    const float squared = scSample * scSample;
+    env = env * 0.999f + squared * 0.001f; // Very slow RMS averaging
     
-    const float rms = std::sqrt (env);
-    const float levelDb = juce::Decibels::gainToDecibels (rms);
-
-    const float thr   = apvts.getRawParameterValue ("THRESHOLD")->load();
-    const float ratio = apvts.getRawParameterValue ("RATIO")->load();
-    const float knee  = apvts.getRawParameterValue ("KNEE")->load();
-
-    const float over = levelDb - thr;
-    float grDb = 0.0f;
-
-    if (knee > 0.0f)
+    // Convert to dB
+    const float dbInput = env > 1.0e-12f ? juce::Decibels::gainToDecibels (std::sqrt (env)) : -60.0f;
+    
+    // Compute gain reduction
+    float gainReduction = 0.0f;
+    if (!downwardsBypass && dbInput > threshold)
     {
-        const float halfKnee = 0.5f * knee;
-        if (over > -halfKnee && over < halfKnee)
+        const float overThreshold = dbInput - threshold;
+        const float kneeWidth = knee;
+        
+        if (overThreshold < kneeWidth)
         {
-            const float x = (over + halfKnee) / juce::jmax (1.0e-6f, knee); // 0..1
-            const float soft = x * x * (3.0f - 2.0f * x);                    // smoothstep
-            grDb = soft * (over - over / juce::jmax (1.0f, ratio));
+            // Soft knee
+            const float kneeRatio = 1.0f + (ratio - 1.0f) * overThreshold / kneeWidth;
+            gainReduction = overThreshold * (1.0f - 1.0f / kneeRatio);
         }
-        else if (over >= halfKnee)
+        else
         {
-            grDb = (over - over / juce::jmax (1.0f, ratio));
+            // Hard knee
+            gainReduction = overThreshold * (1.0f - 1.0f / ratio);
         }
     }
-    else if (over > 0.0f)
-    {
-        grDb = (over - over / juce::jmax (1.0f, ratio));
-    }
-
-    const float target = juce::Decibels::decibelsToGain (-grDb);
-    if (target < smoothGain) smoothGain = smoothGain * attackCoeff  + target * (1.0f - attackCoeff);
-    else                     smoothGain = smoothGain * releaseCoeff + target * (1.0f - releaseCoeff);
-
-    currentGRdB.store (juce::jlimit (0.0f, 60.0f, -juce::Decibels::gainToDecibels (smoothGain + 1.0e-9f)));
-    return smoothGain;
+    
+    // Smooth gain reduction
+    const float targetGain = juce::Decibels::decibelsToGain (-gainReduction);
+    if (targetGain < smoothGain) 
+        smoothGain = smoothGain * attackCoeff + targetGain * (1.0f - attackCoeff);
+    else 
+        smoothGain = smoothGain * releaseCoeff + targetGain * (1.0f - releaseCoeff);
+    
+    // Store gain reduction for metering
+    currentGRdB.store (gainReduction);
+    
+    // Apply gain and mix
+    const float processed = input * smoothGain;
+    const float mixAmount = mix * 0.01f;
+    return input * (1.0f - mixAmount) + processed * mixAmount;
 }
 
-float CompressorPluginAudioProcessor::computeUpwardsGain (float scSample) noexcept
+float CompressorPluginAudioProcessor::processUpwardsCompressor(float input, int channel)
 {
-    // RMS detector with much slower initial response to prevent pops
-    const float x2 = scSample * scSample;
+    // Sidechain EQ processing (mono detector)
+    float scSample = scEQ.process (input);
     
-    // Use a very slow initial ramp to prevent sudden jumps when audio starts
+    // RMS envelope follower
+    const float squared = scSample * scSample;
+    upwardsEnv = upwardsEnv * 0.999f + squared * 0.001f; // Very slow RMS averaging
+    
+    // Convert to dB
+    const float dbInput = upwardsEnv > 1.0e-12f ? juce::Decibels::gainToDecibels (std::sqrt (upwardsEnv)) : -60.0f;
+    
+    // Compute gain boost
+    float gainBoost = 0.0f;
+    if (!upwardsBypass && dbInput < upwardsThreshold)
+    {
+        const float underThreshold = upwardsThreshold - dbInput;
+        const float kneeWidth = upwardsKnee;
+        
+        if (underThreshold < kneeWidth)
+        {
+            // Soft knee
+            const float kneeRatio = 1.0f + (upwardsRatio - 1.0f) * underThreshold / kneeWidth;
+            gainBoost = underThreshold * (1.0f - 1.0f / kneeRatio);
+        }
+        else
+        {
+            // Hard knee
+            gainBoost = underThreshold * (1.0f - 1.0f / upwardsRatio);
+        }
+    }
+    
+    // Smooth gain boost with initial ramp protection
+    const float targetGain = juce::Decibels::decibelsToGain (gainBoost);
+    float target = targetGain;
+    
+    // Initial ramp protection for upwards compressor
     if (upwardsInitialRamp)
     {
-        upwardsEnv = x2 * 0.001f + upwardsEnv * 0.999f; // Very slow initial ramp
-        if (upwardsEnv > 1.0e-6f) upwardsInitialRamp = false; // Switch to normal mode once we have some signal
-    }
-    else
-    {
-        upwardsEnv = x2 + (upwardsEnv - x2) * 0.99f; // Normal response
-    }
-    
-    // Ensure envelope doesn't get stuck at zero
-    if (upwardsEnv < 1.0e-12f) upwardsEnv = 1.0e-12f;
-    
-    const float rms = std::sqrt (upwardsEnv);
-    const float levelDb = juce::Decibels::gainToDecibels (rms);
-
-    const float thr   = apvts.getRawParameterValue ("UPWARDS_THRESHOLD")->load();
-    const float ratio = apvts.getRawParameterValue ("UPWARDS_RATIO")->load();
-    const float knee  = apvts.getRawParameterValue ("UPWARDS_KNEE")->load();
-
-    const float under = thr - levelDb; // For upwards compression, we look at how much we're UNDER the threshold
-    float gainDb = 0.0f;
-
-    if (knee > 0.0f)
-    {
-        const float halfKnee = 0.5f * knee;
-        if (under > -halfKnee && under < halfKnee)
+        upwardsStartupDelay++;
+        if (upwardsStartupDelay > 441) // 10ms at 44.1kHz
         {
-            const float x = (under + halfKnee) / juce::jmax (1.0e-6f, knee); // 0..1
-            const float soft = x * x * (3.0f - 2.0f * x);                    // smoothstep
-            gainDb = soft * (under - under / juce::jmax (1.0f, ratio));
+            upwardsInitialRamp = false;
         }
-        else if (under >= halfKnee)
+        else
         {
-            gainDb = (under - under / juce::jmax (1.0f, ratio));
+            target = 1.0f; // No boost during initial ramp
         }
     }
-    else if (under > 0.0f)
-    {
-        gainDb = (under - under / juce::jmax (1.0f, ratio));
-    }
-
-    const float target = juce::Decibels::decibelsToGain (gainDb);
     
     // Much more gradual gain smoothing to prevent sudden jumps
     if (upwardsSmoothGain < 0.5f) // If gain is low, ramp up very slowly
@@ -221,12 +207,14 @@ float CompressorPluginAudioProcessor::computeUpwardsGain (float scSample) noexce
     }
     else
     {
-        if (target > upwardsSmoothGain) upwardsSmoothGain = upwardsSmoothGain * upwardsAttackCoeff  + target * (1.0f - upwardsAttackCoeff);
-        else                            upwardsSmoothGain = upwardsSmoothGain * upwardsReleaseCoeff + target * (1.0f - upwardsReleaseCoeff);
+        if (target > upwardsSmoothGain) 
+            upwardsSmoothGain = upwardsSmoothGain * upwardsAttackCoeff + target * (1.0f - upwardsAttackCoeff);
+        else 
+            upwardsSmoothGain = upwardsSmoothGain * upwardsReleaseCoeff + target * (1.0f - upwardsReleaseCoeff);
     }
 
     currentUpwardsGaindB.store (juce::jlimit (0.0f, 20.0f, juce::Decibels::gainToDecibels (upwardsSmoothGain + 1.0e-9f)));
-    return upwardsSmoothGain;
+    return input * upwardsSmoothGain;
 }
 
 void CompressorPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
@@ -238,24 +226,19 @@ void CompressorPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buf
     updateTimeConstants();
     updateSidechainEQ();
 
-    // Check if vocal mode and drumbus mode are enabled (mutually exclusive)
-    vocalModeEnabled = apvts.getRawParameterValue ("VOCAL_MODE")->load() > 0.5f;
-    drumbusModeEnabled = apvts.getRawParameterValue ("DRUMBUS_MODE")->load() > 0.5f && !vocalModeEnabled;
-    
     // Reset envelope followers if they're in an invalid state to prevent pops
     if (env < 1.0e-12f) env = 1.0e-12f;
     if (upwardsEnv < 1.0e-12f) upwardsEnv = 1.0e-12f;
     
     // Check processing order
-    bool upwardsFirst = apvts.getRawParameterValue ("UPWARDS_FIRST")->load() > 0.5f;
+    bool processUpwardsFirst = upwardsFirst;
     
     {
-        // Standard processing without oversampling
         // Input gain
-        const float inGain = juce::Decibels::decibelsToGain (apvts.getRawParameterValue ("INPUT_GAIN")->load());
+        const float inGain = juce::Decibels::decibelsToGain (inputGain);
         buffer.applyGain (inGain);
         
-        // Calculate input level (after input gain) and detect audio activity
+        // Calculate input level
         float inputPeak = 0.0f;
         for (int ch = 0; ch < numCh; ++ch)
         {
@@ -267,229 +250,74 @@ void CompressorPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buf
         }
         inputLevel = inputPeak > 0.0f ? juce::Decibels::gainToDecibels(inputPeak) : -60.0f;
         
-        // Detect audio activity (threshold at -60dB)
-        const bool hasAudio = inputPeak > 1.0e-3f; // -60dB threshold
-        if (hasAudio)
-        {
-            audioInactiveCounter = 0; // Reset inactive counter
-            if (!audioIsActive)
-            {
-                audioIsActive = true;
-                upwardsStartupDelay = 0; // Reset startup delay when audio starts
-            }
-        }
-        else
-        {
-            audioInactiveCounter += numSamples;
-            if (audioInactiveCounter > DEACTIVATION_THRESHOLD)
-            {
-                audioIsActive = false; // Deactivate after 50ms of silence
-                upwardsStartupDelay = 0; // Reset startup delay
-                // Reset upwards compressor state when audio becomes inactive
-                upwardsEnv = 1.0e-12f;
-                upwardsSmoothGain = 1.0f;
-                upwardsInitialRamp = true;
-                currentUpwardsGaindB.store(0.0f);
-            }
-        }
-
-        // Wet copy
-        wetBuffer.makeCopyOf (buffer, true);
-
-        // Build internal sidechain: sum main input to mono
-        scBuffer.clear();
-        float* scWrite = scBuffer.getWritePointer (0);
-        for (int n = 0; n < numSamples; ++n)
-        {
-            float s = 0.0f;
-            for (int ch = 0; ch < numCh; ++ch)
-                s += buffer.getReadPointer (ch)[n];
-            scWrite[n] = s * (1.0f / juce::jmax (1, numCh));
-        }
-
-        // Apply detector EQ
-        float* scData = scBuffer.getWritePointer (0);
-        for (int n = 0; n < numSamples; ++n)
-            scData[n] = scEQ.process (scData[n]);
-
-        // Process based on order with proper cascading
-        if (upwardsFirst)
-        {
-            // Upwards compressor first
-            const bool upwardsBypass = apvts.getRawParameterValue ("UPWARDS_BYPASS")->load();
-            if (!upwardsBypass && audioIsActive) // Process if NOT bypassed AND audio is active
-            {
-                // Add startup delay to prevent initial surge
-                if (upwardsStartupDelay < ACTIVATION_DELAY_SAMPLES) // Wait for 100ms at 44.1kHz
-                {
-                    upwardsStartupDelay += numSamples;
-                    // During startup delay, just pass through without processing
-                }
-                else
-                {
-                    const float* scRead = scBuffer.getReadPointer (0);
-                    const float upwardsMix = apvts.getRawParameterValue ("UPWARDS_MIX")->load() * 0.01f; // 0..1
-                    
-                    for (int n = 0; n < numSamples; ++n)
-                    {
-                        const float g = computeUpwardsGain (scRead[n]);
-                        for (int ch = 0; ch < numCh; ++ch)
-                        {
-                            const float originalSample = wetBuffer.getReadPointer (ch)[n];
-                            const float processedSample = originalSample * g;
-                            wetBuffer.getWritePointer (ch)[n] = originalSample * (1.0f - upwardsMix) + processedSample * upwardsMix;
-                        }
-                    }
-                }
-                
-                // Apply upwards output gain (feeds into downwards compressor)
-                const float upwardsOutputGain = juce::Decibels::decibelsToGain (apvts.getRawParameterValue ("UPWARDS_OUTPUT")->load());
-                for (int ch = 0; ch < numCh; ++ch)
-                    wetBuffer.applyGain (ch, 0, numSamples, upwardsOutputGain);
-            }
-            
-            // Update sidechain for downwards compressor to use processed signal
-            scBuffer.clear();
-            float* scWrite = scBuffer.getWritePointer (0);
-            for (int n = 0; n < numSamples; ++n)
-            {
-                float s = 0.0f;
-                for (int ch = 0; ch < numCh; ++ch)
-                    s += wetBuffer.getReadPointer (ch)[n];
-                scWrite[n] = s * (1.0f / juce::jmax (1, numCh));
-            }
-            
-            // Apply detector EQ to updated sidechain
-            float* scData = scBuffer.getWritePointer (0);
-            for (int n = 0; n < numSamples; ++n)
-                scData[n] = scEQ.process (scData[n]);
-            
-            // Then downwards compressor (processes the output of upwards compressor)
-            const bool downwardsBypass = apvts.getRawParameterValue ("DOWNWARDS_BYPASS")->load();
-            if (!downwardsBypass) // Process if NOT bypassed
-            {
-                const float downwardsMix = apvts.getRawParameterValue ("MIX")->load() * 0.01f; // 0..1
-                for (int n = 0; n < numSamples; ++n)
-                {
-                    const float g = computeGain (scData[n]);
-                    for (int ch = 0; ch < numCh; ++ch)
-                    {
-                        const float originalSample = wetBuffer.getReadPointer (ch)[n];
-                        const float processedSample = originalSample * g;
-                        wetBuffer.getWritePointer (ch)[n] = originalSample * (1.0f - downwardsMix) + processedSample * downwardsMix;
-                    }
-                }
-                
-                // Apply downwards output gain (feeds into global mix)
-                const float downwardsOutputGain = juce::Decibels::decibelsToGain (apvts.getRawParameterValue ("DOWNWARDS_OUTPUT")->load());
-                for (int ch = 0; ch < numCh; ++ch)
-                    wetBuffer.applyGain (ch, 0, numSamples, downwardsOutputGain);
-            }
-        }
-        else
-        {
-            // Downwards compressor first
-            const bool downwardsBypass = apvts.getRawParameterValue ("DOWNWARDS_BYPASS")->load();
-            if (!downwardsBypass) // Process if NOT bypassed
-            {
-                const float* scRead = scBuffer.getReadPointer (0);
-                const float downwardsMix = apvts.getRawParameterValue ("MIX")->load() * 0.01f; // 0..1
-                
-                for (int n = 0; n < numSamples; ++n)
-                {
-                    const float g = computeGain (scRead[n]);
-                    for (int ch = 0; ch < numCh; ++ch)
-                    {
-                        const float originalSample = wetBuffer.getReadPointer (ch)[n];
-                        const float processedSample = originalSample * g;
-                        wetBuffer.getWritePointer (ch)[n] = originalSample * (1.0f - downwardsMix) + processedSample * downwardsMix;
-                    }
-                }
-                
-                // Apply downwards output gain (feeds into upwards compressor)
-                const float downwardsOutputGain = juce::Decibels::decibelsToGain (apvts.getRawParameterValue ("DOWNWARDS_OUTPUT")->load());
-                for (int ch = 0; ch < numCh; ++ch)
-                    wetBuffer.applyGain (ch, 0, numSamples, downwardsOutputGain);
-            }
-            
-            // Update sidechain for upwards compressor to use processed signal
-            scBuffer.clear();
-            float* scWrite = scBuffer.getWritePointer (0);
-            for (int n = 0; n < numSamples; ++n)
-            {
-                float s = 0.0f;
-                for (int ch = 0; ch < numCh; ++ch)
-                    s += wetBuffer.getReadPointer (ch)[n];
-                scWrite[n] = s * (1.0f / juce::jmax (1, numCh));
-            }
-            
-            // Apply detector EQ to updated sidechain
-            float* scData = scBuffer.getWritePointer (0);
-            for (int n = 0; n < numSamples; ++n)
-                scData[n] = scEQ.process (scData[n]);
-            
-            // Then upwards compressor (processes the output of downwards compressor)
-            const bool upwardsBypass = apvts.getRawParameterValue ("UPWARDS_BYPASS")->load();
-            if (!upwardsBypass && audioIsActive) // Process if NOT bypassed AND audio is active
-            {
-                // Add startup delay to prevent initial surge
-                if (upwardsStartupDelay < ACTIVATION_DELAY_SAMPLES) // Wait for 100ms at 44.1kHz
-                {
-                    upwardsStartupDelay += numSamples;
-                    // During startup delay, just pass through without processing
-                }
-                else
-                {
-                    const float upwardsMix = apvts.getRawParameterValue ("UPWARDS_MIX")->load() * 0.01f; // 0..1
-                    for (int n = 0; n < numSamples; ++n)
-                    {
-                        const float g = computeUpwardsGain (scData[n]);
-                        for (int ch = 0; ch < numCh; ++ch)
-                        {
-                            const float originalSample = wetBuffer.getReadPointer (ch)[n];
-                            const float processedSample = originalSample * g;
-                            wetBuffer.getWritePointer (ch)[n] = originalSample * (1.0f - upwardsMix) + processedSample * upwardsMix;
-                        }
-                    }
-                }
-                
-                // Apply upwards output gain (feeds into global mix)
-                const float upwardsOutputGain = juce::Decibels::decibelsToGain (apvts.getRawParameterValue ("UPWARDS_OUTPUT")->load());
-                for (int ch = 0; ch < numCh; ++ch)
-                    wetBuffer.applyGain (ch, 0, numSamples, upwardsOutputGain);
-            }
-        }
-
-        // Apply global mix (wet/dry blend)
-        const float globalMix = apvts.getRawParameterValue ("GLOBAL_MIX")->load() * 0.01f; // 0..1
-        for (int ch = 0; ch < numCh; ++ch)
-        {
-            const float* dryData = buffer.getReadPointer(ch);
-            const float* wetData = wetBuffer.getReadPointer(ch);
-            float* outputData = buffer.getWritePointer(ch);
-            
-            for (int n = 0; n < numSamples; ++n)
-            {
-                outputData[n] = dryData[n] * (1.0f - globalMix) + wetData[n] * globalMix;
-            }
-        }
-
-        // Apply global output gain (after global mix)
-        const float outGain = juce::Decibels::decibelsToGain (apvts.getRawParameterValue ("OUTPUT_GAIN")->load());
-        buffer.applyGain (outGain);
+        // Copy to wet buffer
+        wetBuffer.makeCopyOf (buffer);
         
-        // Calculate output level (after all processing)
-        float outputPeak = 0.0f;
+        // Process each channel
         for (int ch = 0; ch < numCh; ++ch)
         {
-            const float* outputData = buffer.getReadPointer(ch);
+            float* channelData = wetBuffer.getWritePointer(ch);
+            
             for (int n = 0; n < numSamples; ++n)
             {
-                outputPeak = juce::jmax(outputPeak, std::abs(outputData[n]));
+                float sample = channelData[n];
+                
+                if (processUpwardsFirst)
+                {
+                    // Upwards first, then downwards
+                    sample = processUpwardsCompressor(sample, ch);
+                    sample = processDownwardsCompressor(sample, ch);
+                }
+                else
+                {
+                    // Downwards first, then upwards
+                    sample = processDownwardsCompressor(sample, ch);
+                    sample = processUpwardsCompressor(sample, ch);
+                }
+                
+                channelData[n] = sample;
             }
         }
-        outputLevel = outputPeak > 0.0f ? juce::Decibels::gainToDecibels(outputPeak) : -60.0f;
+        
+        // Apply downwards output gain
+        const float downwardsOutputGain = juce::Decibels::decibelsToGain (downwardsOutput);
+        wetBuffer.applyGain (downwardsOutputGain);
+        
+        // Apply upwards output gain (feeds into global mix)
+        const float upwardsOutputGain = juce::Decibels::decibelsToGain (upwardsOutput);
+        for (int ch = 0; ch < numCh; ++ch)
+            wetBuffer.applyGain (ch, 0, numSamples, upwardsOutputGain);
     }
+
+    // Apply global mix (wet/dry blend)
+    const float globalMixAmount = globalMix * 0.01f; // 0..1
+    for (int ch = 0; ch < numCh; ++ch)
+    {
+        const float* dryData = buffer.getReadPointer(ch);
+        const float* wetData = wetBuffer.getReadPointer(ch);
+        float* outputData = buffer.getWritePointer(ch);
+        
+        for (int n = 0; n < numSamples; ++n)
+        {
+            outputData[n] = dryData[n] * (1.0f - globalMixAmount) + wetData[n] * globalMixAmount;
+        }
+    }
+
+    // Apply global output gain (after global mix)
+    const float outGain = juce::Decibels::decibelsToGain (outputGain);
+    buffer.applyGain (outGain);
+    
+    // Calculate output level (after all processing)
+    float outputPeak = 0.0f;
+    for (int ch = 0; ch < numCh; ++ch)
+    {
+        const float* outputData = buffer.getReadPointer(ch);
+        for (int n = 0; n < numSamples; ++n)
+        {
+            outputPeak = juce::jmax(outputPeak, std::abs(outputData[n]));
+        }
+    }
+    outputLevel = outputPeak > 0.0f ? juce::Decibels::gainToDecibels(outputPeak) : -60.0f;
 }
 
 //==============================================================================
@@ -500,52 +328,64 @@ juce::AudioProcessorEditor* CompressorPluginAudioProcessor::createEditor()
 
 void CompressorPluginAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
+    // Simple state saving - just save parameter values
     juce::MemoryOutputStream mos (destData, true);
-    apvts.state.writeToStream (mos);
+    mos.writeFloat (inputGain);
+    mos.writeFloat (outputGain);
+    mos.writeFloat (globalMix);
+    mos.writeFloat (threshold);
+    mos.writeFloat (ratio);
+    mos.writeFloat (attack);
+    mos.writeFloat (release);
+    mos.writeFloat (knee);
+    mos.writeFloat (mix);
+    mos.writeFloat (downwardsOutput);
+    mos.writeBool (downwardsBypass);
+    mos.writeBool (vocalMode);
+    mos.writeBool (drumbusMode);
+    mos.writeFloat (upwardsThreshold);
+    mos.writeFloat (upwardsRatio);
+    mos.writeFloat (upwardsAttack);
+    mos.writeFloat (upwardsRelease);
+    mos.writeFloat (upwardsKnee);
+    mos.writeFloat (upwardsMix);
+    mos.writeFloat (upwardsOutput);
+    mos.writeBool (upwardsBypass);
+    mos.writeBool (upwardsFirst);
 }
 
 void CompressorPluginAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    auto tree = juce::ValueTree::readFromData (data, (size_t) sizeInBytes);
-    if (tree.isValid()) apvts.replaceState (tree);
+    // Simple state loading - just load parameter values
+    juce::MemoryInputStream mis (data, sizeInBytes, false);
+    inputGain = mis.readFloat();
+    outputGain = mis.readFloat();
+    globalMix = mis.readFloat();
+    threshold = mis.readFloat();
+    ratio = mis.readFloat();
+    attack = mis.readFloat();
+    release = mis.readFloat();
+    knee = mis.readFloat();
+    mix = mis.readFloat();
+    downwardsOutput = mis.readFloat();
+    downwardsBypass = mis.readBool();
+    vocalMode = mis.readBool();
+    drumbusMode = mis.readBool();
+    upwardsThreshold = mis.readFloat();
+    upwardsRatio = mis.readFloat();
+    upwardsAttack = mis.readFloat();
+    upwardsRelease = mis.readFloat();
+    upwardsKnee = mis.readFloat();
+    upwardsMix = mis.readFloat();
+    upwardsOutput = mis.readFloat();
+    upwardsBypass = mis.readBool();
+    upwardsFirst = mis.readBool();
 }
 
 //==============================================================================
-juce::AudioProcessorValueTreeState::ParameterLayout CompressorPluginAudioProcessor::createParameterLayout()
-{
-    using R = juce::NormalisableRange<float>;
-    std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
-
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("INPUT_GAIN",  "Input Gain",  R (-24.0f, 24.0f, 0.01f), 0.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("OUTPUT_GAIN", "Output Gain", R (-24.0f, 24.0f, 0.01f), 0.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("GLOBAL_MIX",  "Global Mix",  R (0.0f, 100.0f, 0.1f), 100.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("THRESHOLD",   "Threshold",  R (-60.0f, 0.0f, 0.01f), -24.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("RATIO",       "Ratio",      R (1.0f, 20.0f, 0.01f), 4.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("ATTACK",      "Attack",     R (0.1f, 100.0f, 0.01f), 10.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("RELEASE",     "Release",    R (5.0f, 1000.0f, 0.01f), 100.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("KNEE",        "Knee",       R (0.0f, 24.0f, 0.01f), 6.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("MIX",         "Mix",        R (0.0f, 100.0f, 0.01f), 100.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("DOWNWARDS_OUTPUT", "Downwards Output", R (-24.0f, 24.0f, 0.01f), 0.0f));
-    params.push_back (std::make_unique<juce::AudioParameterBool> ("DOWNWARDS_BYPASS", "Downwards Bypass", false));
-    params.push_back (std::make_unique<juce::AudioParameterBool> ("VOCAL_MODE",   "Vocal Mode", false));
-    params.push_back (std::make_unique<juce::AudioParameterBool> ("DRUMBUS_MODE", "Drumbus Mode", false));
-    
-    // Upwards compressor parameters
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("UPWARDS_THRESHOLD",   "Upwards Threshold",  R (-60.0f, 0.0f, 0.01f), -40.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("UPWARDS_RATIO",       "Upwards Ratio",      R (1.0f, 10.0f, 0.01f), 2.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("UPWARDS_ATTACK",      "Upwards Attack",     R (0.1f, 100.0f, 0.01f), 5.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("UPWARDS_RELEASE",     "Upwards Release",    R (5.0f, 1000.0f, 0.01f), 50.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("UPWARDS_KNEE",        "Upwards Knee",       R (0.0f, 24.0f, 0.01f), 3.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("UPWARDS_MIX",         "Upwards Mix",        R (0.0f, 100.0f, 0.1f), 100.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("UPWARDS_OUTPUT",      "Upwards Output",     R (-24.0f, 24.0f, 0.01f), 0.0f));
-    params.push_back (std::make_unique<juce::AudioParameterBool> ("UPWARDS_BYPASS",      "Upwards Bypass", false));
-    params.push_back (std::make_unique<juce::AudioParameterBool> ("UPWARDS_FIRST",        "Upwards First", false));
-
-    return { params.begin(), params.end() };
-}
-
 // Factory for old-style hosts / standalone
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new CompressorPluginAudioProcessor();
 }
+
