@@ -28,7 +28,12 @@
 namespace juce
 {
 
+#if !defined (juce_compilationDate)
 const char* const juce_compilationDate = __DATE__;
+#endif
+
+#if !defined (juce_compilationTime)
 const char* const juce_compilationTime = __TIME__;
+#endif
 
 } // namespace juce
