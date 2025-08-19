@@ -67,7 +67,7 @@ jobs:
           echo "Checking available schemes:"
           xcodebuild -project "$JUCE_DIR/extras/Projucer/Builds/MacOSX/Projucer.xcodeproj" -list
           echo "Building Projucer with target instead of scheme:"
-          xcodebuild -project "$JUCE_DIR/extras/Projucer/Builds/MacOSX/Projucer.xcodeproj" -target "Projucer" -configuration Release
+          xcodebuild -project "$JUCE_DIR/extras/Projucer/Builds/MacOSX/Projucer.xcodeproj" -target "Projucer - App" -configuration Release
           PROJUCER_BIN="$JUCE_DIR/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer"
           if [ -x "$PROJUCER_BIN" ]; then
             echo "Running Projucer --resave ultraDYN.jucer"
