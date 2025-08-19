@@ -11,6 +11,7 @@ CompressorPluginAudioProcessor::CompressorPluginAudioProcessor()
                   .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
 #endif
 )
+, apvts(*this, nullptr, "PARAMS", createParameterLayout())
 {
     // Oversampling disabled to prevent crashes
     // oversampling = nullptr;
@@ -45,7 +46,10 @@ void CompressorPluginAudioProcessor::prepareToPlay (double sampleRate, int sampl
     wetBuffer.setSize (numIn, samplesPerBlock);
     scBuffer.setSize (1, samplesPerBlock);
 
-    scEQ.reset();
+    // Initialize the sidechain EQ filter
+    scEQCoeffs = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate, 1500.0, 0.7071f, 1.0f);
+    scEQ.prepare({sampleRate, (juce::uint32)samplesPerBlock, 1});
+    scEQ.coefficients = scEQCoeffs;
 
     // Initialize envelope followers to prevent pops when audio starts
     env = 1.0e-12f;
@@ -100,7 +104,8 @@ void CompressorPluginAudioProcessor::updateSidechainEQ()
         const float thr = apvts.getRawParameterValue ("THRESHOLD")->load();
         const float tNorm = juce::jlimit (0.0f, 1.0f, (thresholdMax - thr) / (thresholdMax - thresholdMin));
         const float peakDb = tNorm * 5.0f; // 0 .. +5 dB
-        scEQ.setPeak (sr, freq, q, peakDb);
+        const float peakGain = juce::Decibels::decibelsToGain(peakDb);
+        scEQCoeffs = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sr, freq, q, peakGain);
     }
     else if (drumbusModeEnabled)
     {
@@ -110,13 +115,16 @@ void CompressorPluginAudioProcessor::updateSidechainEQ()
         const float thr = apvts.getRawParameterValue ("THRESHOLD")->load();
         const float tNorm = juce::jlimit (0.0f, 1.0f, (thresholdMax - thr) / (thresholdMax - thresholdMin));
         const float peakDb = tNorm * -5.0f; // 0 .. -5 dB
-        scEQ.setPeak (sr, freq, q, peakDb);
+        const float peakGain = juce::Decibels::decibelsToGain(peakDb);
+        scEQCoeffs = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sr, freq, q, peakGain);
     }
     else
     {
         // Normal mode: no sidechain EQ boost
-        scEQ.setPeak (sr, freq, q, 0.0f);
+        scEQCoeffs = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sr, freq, q, 1.0f);
     }
+    
+    scEQ.coefficients = scEQCoeffs;
 }
 
 float CompressorPluginAudioProcessor::computeGain (float scSample) noexcept
@@ -311,7 +319,7 @@ void CompressorPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buf
         // Apply detector EQ
         float* scData = scBuffer.getWritePointer (0);
         for (int n = 0; n < numSamples; ++n)
-            scData[n] = scEQ.process (scData[n]);
+            scData[n] = scEQ.processSample(scData[n]);
 
         // Process based on order with proper cascading
         if (upwardsFirst)
@@ -363,7 +371,7 @@ void CompressorPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buf
             // Apply detector EQ to updated sidechain
             float* scData = scBuffer.getWritePointer (0);
             for (int n = 0; n < numSamples; ++n)
-                scData[n] = scEQ.process (scData[n]);
+                scData[n] = scEQ.processSample(scData[n]);
             
             // Then downwards compressor (processes the output of upwards compressor)
             const bool downwardsBypass = apvts.getRawParameterValue ("DOWNWARDS_BYPASS")->load();
@@ -427,7 +435,7 @@ void CompressorPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buf
             // Apply detector EQ to updated sidechain
             float* scData = scBuffer.getWritePointer (0);
             for (int n = 0; n < numSamples; ++n)
-                scData[n] = scEQ.process (scData[n]);
+                scData[n] = scEQ.processSample(scData[n]);
             
             // Then upwards compressor (processes the output of downwards compressor)
             const bool upwardsBypass = apvts.getRawParameterValue ("UPWARDS_BYPASS")->load();

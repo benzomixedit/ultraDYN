@@ -64,8 +64,9 @@ private:
     juce::AudioBuffer<float> wetBuffer;
     juce::AudioBuffer<float> scBuffer;
     
-    // Sidechain EQ
-    juce::IIRFilter scEQ;
+    // Sidechain EQ - using IIRFilter from DSP module
+    juce::dsp::IIR::Filter<float> scEQ;
+    juce::dsp::IIR::Coefficients<float>::Ptr scEQCoeffs;
     
     // Envelope followers
     float env = 1.0e-12f;
