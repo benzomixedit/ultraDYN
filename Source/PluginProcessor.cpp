@@ -504,7 +504,7 @@ void CompressorPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buf
 //==============================================================================
 const juce::String CompressorPluginAudioProcessor::getName() const
 {
-    return JucePlugin_Name;
+    return "ultraDYN";
 }
 
 bool CompressorPluginAudioProcessor::acceptsMidi() const
