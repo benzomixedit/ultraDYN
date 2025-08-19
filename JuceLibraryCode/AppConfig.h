@@ -1,12 +1,12 @@
 #pragma once
 
-// Ensure we build without HarfBuzz/SheenBidi/Freetype on Windows runners while keeping juce_graphics
+// Enable Windows text stack with DirectWrite and HarfBuzz/SheenBidi where needed
 #ifndef JUCE_USE_HARFBUZZ
-#define JUCE_USE_HARFBUZZ 0
+#define JUCE_USE_HARFBUZZ 1
 #endif
 
 #ifndef JUCE_USE_SHEENBIDI
-#define JUCE_USE_SHEENBIDI 0
+#define JUCE_USE_SHEENBIDI 1
 #endif
 
 #ifndef JUCE_USE_FREETYPE
@@ -18,7 +18,7 @@
 #endif
 
 #ifndef JUCE_USE_DIRECTWRITE
-#define JUCE_USE_DIRECTWRITE 0
+#define JUCE_USE_DIRECTWRITE 1
 #endif
 
 #ifndef JUCE_USE_WIN32_FONTS
