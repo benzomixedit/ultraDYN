@@ -58,23 +58,6 @@ jobs:
         if: matrix.os == 'Windows'
         uses: microsoft/setup-msbuild@v1.1
 
-      - name: Update JUCE paths in .jucer file
-        shell: bash
-        run: |
-          # Update the .jucer file to use the correct JUCE path for CI
-          JUCE_DIR="$HOME/juce"
-          
-          if [ "${{ matrix.os }}" = "macOS" ]; then
-            # For macOS, use relative path from project root
-            sed -i.bak 's|path="../../../JUCE/modules"|path="../../juce/modules"|g' ultraDYN.jucer
-          elif [ "${{ matrix.os }}" = "Windows" ]; then
-            # For Windows, use absolute path
-            sed -i.bak 's|path="../../../JUCE/modules"|path="C:/Users/runneradmin/juce/modules"|g' ultraDYN.jucer
-          fi
-          
-          echo "Updated .jucer file with JUCE path:"
-          grep -A 2 -B 2 "path=" ultraDYN.jucer
-
       - name: Generate project files (macOS)
         if: matrix.os == 'macOS'
         shell: bash
