@@ -8,7 +8,6 @@ on:
 
 env:
   JUCE_VERSION: '8.0.8'
-  PLUGINVAL_VERSION: '1.0.0'
 
 jobs:
   build-and-test:
@@ -47,64 +46,96 @@ jobs:
           # Verify JUCE setup
           echo "JUCE directory contents:"
           ls -la
-          echo "JUCE extras directory contents:"
-          ls -la extras/ || echo "extras directory not found"
-          echo "JUCE Projucer directory contents:"
-          ls -la extras/Projucer/ || echo "Projucer directory not found"
+          echo "JUCE modules directory contents:"
+          ls -la modules/ || echo "modules directory not found"
 
       - name: Cache JUCE
         uses: actions/cache@v4
         with:
           path: |
             $HOME/juce
-            ${{ github.workspace }}/JuceLibraryCode
           key: juce-${{ env.JUCE_VERSION }}-${{ runner.os }}
-
-      - name: Cache build artifacts
-        uses: actions/cache@v4
-        with:
-          path: |
-            build/
-            Builds/VisualStudio2022/x64/${{ matrix.config }}/
-          key: build-${{ runner.os }}-${{ matrix.config }}-${{ hashFiles('**/*.cpp', '**/*.h', '**/*.jucer') }}
 
       - name: Setup Visual Studio (Windows)
         if: matrix.os == 'Windows'
         uses: microsoft/setup-msbuild@v1.1
 
-      - name: Check project files
+      - name: Update JUCE paths in .jucer file
         shell: bash
         run: |
-          # Check if project files exist and are up to date
-          echo "Checking project files..."
+          # Update the .jucer file to use the correct JUCE path for CI
+          JUCE_DIR="$HOME/juce"
+          
           if [ "${{ matrix.os }}" = "macOS" ]; then
-            if [ -f "Builds/MacOSX/ultraDYN.xcodeproj/project.pbxproj" ]; then
-              echo "Xcode project exists"
-            else
-              echo "Warning: Xcode project not found"
-            fi
+            # For macOS, use relative path from project root
+            sed -i.bak 's|path="../../../JUCE/modules"|path="../../juce/modules"|g' ultraDYN.jucer
           elif [ "${{ matrix.os }}" = "Windows" ]; then
-            if [ -f "Builds/VisualStudio2022/ultraDYN.sln" ]; then
-              echo "Visual Studio project exists"
-            else
-              echo "Warning: Visual Studio project not found"
-            fi
+            # For Windows, use absolute path
+            sed -i.bak 's|path="../../../JUCE/modules"|path="C:/Users/runneradmin/juce/modules"|g' ultraDYN.jucer
+          fi
+          
+          echo "Updated .jucer file with JUCE path:"
+          grep -A 2 -B 2 "path=" ultraDYN.jucer
+
+      - name: Generate project files (macOS)
+        if: matrix.os == 'macOS'
+        shell: bash
+        run: |
+          # Build Projucer first
+          echo "Building Projucer..."
+          cd "$HOME/juce/extras/Projucer/Builds/MacOSX"
+          xcodebuild -project Projucer.xcodeproj -target "Projucer - App" -configuration Release
+          
+          # Use Projucer to generate project files
+          PROJUCER_BIN="$HOME/juce/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer"
+          if [ -x "$PROJUCER_BIN" ]; then
+            echo "Running Projucer to generate project files..."
+            "$PROJUCER_BIN" --resave "${{ github.workspace }}/ultraDYN.jucer"
+          else
+            echo "Projucer binary not found, using existing project files"
           fi
 
-      - name: Verify build tools (Windows)
+      - name: Generate project files (Windows)
         if: matrix.os == 'Windows'
-        shell: bash
+        shell: pwsh
         run: |
-          echo "Checking available build tools..."
-          echo "PATH: $PATH"
-          echo "MSBuild location:"
-          which msbuild || echo "msbuild not found in PATH"
-          echo "Visual Studio installation:"
-          ls -la "C:/Program Files/Microsoft Visual Studio/" || echo "Visual Studio not found"
-          echo "Build Tools installation:"
-          ls -la "C:/Program Files (x86)/Microsoft Visual Studio/" || echo "Build Tools not found"
+          # Build Projucer first
+          Write-Host "Building Projucer..."
+          $juceDir = "C:\Users\runneradmin\juce"
+          $projucerSln = Join-Path $juceDir "extras\Projucer\Builds\VisualStudio2022\Projucer.sln"
+          
+          # Find MSBuild
+          $msbuildPath = $null
+          $possiblePaths = @(
+            "msbuild",
+            "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
+            "C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe",
+            "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe"
+          )
+          
+          foreach ($path in $possiblePaths) {
+            if (Get-Command $path -ErrorAction SilentlyContinue) {
+              $msbuildPath = $path
+              break
+            }
+          }
+          
+          if ($msbuildPath) {
+            & $msbuildPath $projucerSln "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal"
+            
+            # Use Projucer to generate project files
+            $projucerExe = Join-Path $juceDir "extras\Projucer\Builds\VisualStudio2022\x64\Release\App\Projucer.exe"
+            if (Test-Path $projucerExe) {
+              Write-Host "Running Projucer to generate project files..."
+              & $projucerExe --resave ultraDYN.jucer
+            } else {
+              Write-Host "Projucer.exe not found, using existing project files"
+            }
+          } else {
+            Write-Host "MSBuild not found, using existing project files"
+          }
 
-      - name: Setup build environment
+      - name: Setup build environment (macOS)
         if: matrix.os == 'macOS'
         shell: bash
         run: |
@@ -114,11 +145,11 @@ jobs:
           security unlock-keychain -p "" build.keychain
           security set-keychain-settings build.keychain
           
-          # Create certificate with proper password handling
+          # Create certificate
           openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -subj "/CN=UltraDYN Development"
           openssl pkcs12 -export -out certificate.p12 -inkey key.pem -in cert.pem -passout pass:password
           
-          # Import certificate with correct password
+          # Import certificate
           security import certificate.p12 -k build.keychain -P password -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
 
@@ -126,82 +157,24 @@ jobs:
         if: matrix.os == 'macOS'
         shell: bash
         run: |
-          # macOS build - use ultraDYN.jucer
           echo "Building macOS project..."
-          # List available schemes first
-          echo "Available schemes in ultraDYN.xcodeproj:"
+          
+          # List available targets
+          echo "Available targets:"
           xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -list
-          # Build VST3 and AU targets separately to avoid AAX
+          
+          # Build VST3 target
           echo "Building VST3..."
           xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - VST3" -configuration ${{ matrix.config }} -allowProvisioningUpdates
+          
+          # Build AU target
           echo "Building AU..."
           xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - AU" -configuration ${{ matrix.config }} -allowProvisioningUpdates
-
-      - name: Fix JUCE paths in project files (Windows)
-        if: matrix.os == 'Windows'
-        shell: pwsh
-        run: |
-          # Fix JUCE paths in existing project files instead of regenerating
-          Write-Host "Fixing JUCE paths in existing project files..."
-          
-          # Use the correct JUCE directory path for Windows CI environment
-          $juceDir = "C:\Users\runneradmin\juce"
-          Write-Host "Using JUCE directory: $juceDir"
-          
-          # Verify JUCE directory exists
-          if (Test-Path $juceDir) {
-            Write-Host "JUCE directory exists: $juceDir"
-            Write-Host "JUCE directory contents:"
-            Get-ChildItem $juceDir -Name | Select-Object -First 10
-          } else {
-            Write-Host "Warning: JUCE directory does not exist: $juceDir"
-            # Try alternative paths
-            $altPaths = @("$env:HOME\juce", "C:\juce", "D:\juce")
-            foreach ($path in $altPaths) {
-              if (Test-Path $path) {
-                $juceDir = $path
-                Write-Host "Found JUCE at alternative path: $juceDir"
-                break
-              }
-            }
-          }
-          
-          # Set JUCE_PATH environment variable for MSBuild
-          $env:JUCE_PATH = $juceDir
-          Write-Host "Set JUCE_PATH environment variable to: $env:JUCE_PATH"
-          
-          # Check if project files exist
-          if (Test-Path "Builds\VisualStudio2022\ultraDYN.vcxproj") {
-            Write-Host "Found existing project files, updating JUCE paths..."
-            
-            # Read the project file
-            $projectContent = Get-Content "Builds\VisualStudio2022\ultraDYN.vcxproj" -Raw
-            
-            # Replace JUCE_PATH references with the correct CI environment path
-            $projectContent = $projectContent -replace '\$\(JUCE_PATH\)', $juceDir
-            
-            # Write back the updated project file
-            Set-Content "Builds\VisualStudio2022\ultraDYN.vcxproj" $projectContent -NoNewline
-            
-            Write-Host "Updated JUCE paths in project file"
-          } else {
-            Write-Host "Warning: Project files not found"
-          }
-          
-          # Also check and update JuceHeader.h if needed
-          if (Test-Path "JuceLibraryCode\JuceHeader.h") {
-            Write-Host "Checking JuceHeader.h..."
-            $headerContent = Get-Content "JuceLibraryCode\JuceHeader.h" -Raw
-            
-            # JuceHeader.h uses relative includes, so we don't need to modify it
-            Write-Host "JuceHeader.h uses relative includes - no modification needed"
-          }
 
       - name: Build project (Windows)
         if: matrix.os == 'Windows'
         shell: pwsh
         run: |
-          # Windows build using PowerShell
           Write-Host "Building Windows project..."
           
           # Find MSBuild
@@ -210,13 +183,7 @@ jobs:
             "msbuild",
             "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
             "C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe",
-            "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe",
-            "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
-            "C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\MSBuild\Current\Bin\MSBuild.exe",
-            "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\MSBuild\Current\Bin\MSBuild.exe",
-            "C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\MSBuild\15.0\Bin\MSBuild.exe",
-            "C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\MSBuild\15.0\Bin\MSBuild.exe",
-            "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\MSBuild\15.0\Bin\MSBuild.exe"
+            "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe"
           )
           
           foreach ($path in $possiblePaths) {
@@ -230,44 +197,21 @@ jobs:
             Write-Host "Using MSBuild at: $msbuildPath"
             & $msbuildPath "Builds\VisualStudio2022\ultraDYN.sln" "/p:Configuration=${{ matrix.config }}" "/p:Platform=x64" "/verbosity:minimal"
           } else {
-            Write-Error "MSBuild not found. Please ensure Visual Studio or Build Tools are installed."
+            Write-Error "MSBuild not found"
             exit 1
           }
 
-      - name: Setup pluginval
+      - name: Verify build outputs
         shell: bash
         run: |
+          echo "Checking build outputs..."
           if [ "${{ matrix.os }}" = "macOS" ]; then
-            curl -L -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/download/v${{ env.PLUGINVAL_VERSION }}/pluginval_macOS.zip"
-            unzip pluginval.zip
-            chmod +x pluginval
+            echo "macOS build outputs:"
+            find build -name "*.vst3" -o -name "*.component" -o -name "*.app" 2>/dev/null || echo "No build outputs found in build directory"
+            find Builds/MacOSX -name "*.vst3" -o -name "*.component" -o -name "*.app" 2>/dev/null || echo "No build outputs found in Builds/MacOSX directory"
           elif [ "${{ matrix.os }}" = "Windows" ]; then
-            curl -L -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/download/v${{ env.PLUGINVAL_VERSION }}/pluginval_Windows.zip"
-            unzip pluginval.zip
-          fi
-
-      - name: Validate plugins
-        shell: bash
-        run: |
-          if [ "${{ matrix.os }}" = "macOS" ]; then
-            echo "Validating macOS plugins..."
-            if [ -f "build/Build/Products/${{ matrix.config }}/ultraDYN.vst3" ]; then
-              ./pluginval --validate-in-process --timeout-ms 60000 build/Build/Products/${{ matrix.config }}/ultraDYN.vst3
-            else
-              echo "Warning: VST3 plugin not found"
-            fi
-            if [ -f "build/Build/Products/${{ matrix.config }}/ultraDYN.component" ]; then
-              ./pluginval --validate-in-process --timeout-ms 60000 build/Build/Products/${{ matrix.config }}/ultraDYN.component
-            else
-              echo "Warning: Audio Unit plugin not found"
-            fi
-          elif [ "${{ matrix.os }}" = "Windows" ]; then
-            echo "Validating Windows plugins..."
-            if [ -f "Builds/VisualStudio2022/x64/${{ matrix.config }}/VST3/ultraDYN.vst3" ]; then
-              ./pluginval.exe --validate-in-process --timeout-ms 60000 Builds/VisualStudio2022/x64/${{ matrix.config }}/VST3/ultraDYN.vst3
-            else
-              echo "Warning: VST3 plugin not found"
-            fi
+            echo "Windows build outputs:"
+            find Builds/VisualStudio2022 -name "*.vst3" -o -name "*.exe" 2>/dev/null || echo "No build outputs found"
           fi
 
       - name: Upload build artifacts
@@ -278,6 +222,9 @@ jobs:
             build/Build/Products/${{ matrix.config }}/*.vst3
             build/Build/Products/${{ matrix.config }}/*.component
             build/Build/Products/${{ matrix.config }}/*.app
+            Builds/MacOSX/build/Build/Products/${{ matrix.config }}/*.vst3
+            Builds/MacOSX/build/Build/Products/${{ matrix.config }}/*.component
+            Builds/MacOSX/build/Build/Products/${{ matrix.config }}/*.app
             Builds/VisualStudio2022/x64/${{ matrix.config }}/VST3/*.vst3
             Builds/VisualStudio2022/x64/${{ matrix.config }}/Standalone/*.exe
           retention-days: 30

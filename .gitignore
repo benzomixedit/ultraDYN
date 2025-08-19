@@ -1,0 +1,129 @@
+# Build artifacts
+build/
+Builds/*/build/
+Builds/*/Debug/
+Builds/*/Release/
+Builds/*/x64/
+Builds/*/Win32/
+Builds/*/x86/
+
+# JUCE generated files
+JuceLibraryCode/
+*.jucer.bak
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Plugin binaries (these are large and should be built, not committed)
+*.vst3/
+*.component/
+*.app/
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+
+# Installers and packages
+*.dmg
+*.pkg
+*.msi
+*.zip
+
+# Code signing
+*.p12
+*.pem
+*.key
+*.crt
+*.cer
+*.der
+
+# JUCE framework (should be downloaded during build)
+JUCE/
+juce/
+
+# Visual Studio
+*.vcxproj.user
+*.vcxproj.filters
+*.sln.docstates
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Xcode
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+DerivedData/
+*.hmap
+*.ipa
+*.xcuserstate
+project.xcworkspace/
+
+# Linux
+*.o
+*.ko
+*.obj
+*.elf
+*.app
+*.so
+*.so.*
+*.a
+*.la
+*.lo
+*.dll
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+
+# Package managers
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
