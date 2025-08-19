@@ -10,6 +10,27 @@ ultraDYN is a professional dynamic compressor plugin featuring both downwards an
 - **Vocal and Drumbus Modes**: Specialized EQ curves for different applications
 - **Universal Binary**: Compatible with both Intel (x86_64) and Apple Silicon (arm64) Macs
 
+## CI/CD Pipeline
+
+This project includes automated CI/CD pipelines for building and testing the plugin across multiple platforms:
+
+### Automated Builds
+- **CI Pipeline**: Runs on every push and pull request
+- **Release Pipeline**: Automatically creates releases when tags are pushed
+- **Development Pipeline**: Manual builds for testing
+
+### Supported Platforms
+- **macOS**: Universal binary (x86_64 + arm64)
+- **Windows**: x64 architecture
+
+### Build Artifacts
+- VST3 plugins
+- Audio Unit plugins (macOS)
+- Standalone applications
+- Release packages (ZIP files)
+
+For detailed information about the CI/CD setup, see [CI_CD_README.md](CI_CD_README.md).
+
 ## Installation
 
 ### System Requirements
