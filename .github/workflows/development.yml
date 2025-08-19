@@ -67,9 +67,44 @@ jobs:
             ${{ github.workspace }}/JuceLibraryCode
           key: juce-${{ env.JUCE_VERSION }}-${{ runner.os }}
 
+      - name: Build Projucer (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          echo "Building Projucer..."
+          xcodebuild -project "$JUCE_DIR/extras/Projucer/Builds/MacOSX/Projucer.xcodeproj" -scheme Projucer -configuration Release -derivedDataPath "$JUCE_DIR/extras/Projucer/Builds/MacOSX/build"
+          PROJUCER_BIN="$JUCE_DIR/extras/Projucer/Builds/MacOSX/build/Build/Products/Release/Projucer.app/Contents/MacOS/Projucer"
+          if [ ! -x "$PROJUCER_BIN" ]; then
+            echo "Projucer binary not found at $PROJUCER_BIN"; ls -R "$JUCE_DIR/extras/Projucer/Builds/MacOSX/build/Build/Products" || true; exit 1
+          fi
+          echo "PROJUCER_BIN=$PROJUCER_BIN" >> $GITHUB_ENV
+
       - name: Setup Visual Studio (Windows)
         if: runner.os == 'Windows'
         uses: microsoft/setup-msbuild@v1.1
+
+      - name: Build Projucer (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "Building Projucer..."
+          $projucerSln = Join-Path $env:JUCE_DIR 'extras/Projucer/Builds/VisualStudio2022/Projucer.sln'
+          if (!(Test-Path $projucerSln)) { Write-Error "Projucer solution not found at $projucerSln"; exit 1 }
+          msbuild $projucerSln "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal"
+          $projucerBin = Get-ChildItem -Path (Join-Path $env:JUCE_DIR 'extras/Projucer') -Recurse -Filter Projucer.exe | Select-Object -First 1
+          if ($null -eq $projucerBin) { Write-Error "Projucer.exe not found after build"; exit 1 }
+          echo "PROJUCER_BIN=$($projucerBin.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding ascii
+
+      - name: Configure Projucer module paths and resave project
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            "$PROJUCER_BIN" --set-global-search-path osx defaultJuceModulePath="$JUCE_DIR/modules"
+            "$PROJUCER_BIN" --resave ultraDYN.jucer
+          elif [ "${{ runner.os }}" = "Windows" ]; then
+            pwsh -Command '"$env:PROJUCER_BIN" --set-global-search-path windows defaultJuceModulePath="${env:JUCE_DIR}\modules"'
+            pwsh -Command '"$env:PROJUCER_BIN" --resave ultraDYN.jucer'
+          fi
 
       - name: Check project files
         shell: bash
@@ -121,20 +156,20 @@ jobs:
           security import certificate.p12 -k build.keychain -P password -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
 
-                      - name: Build project (macOS)
-          if: runner.os == 'macOS'
-          shell: bash
-          run: |
-            # macOS build - use ultraDYN.jucer
-            echo "Building macOS project..."
-            # List available schemes first
-            echo "Available schemes in ultraDYN.xcodeproj:"
-            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -list
-            # Build VST3 and AU targets separately to avoid AAX
-            echo "Building VST3..."
-            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - VST3" -configuration ${{ github.event.inputs.config }} -allowProvisioningUpdates
-            echo "Building AU..."
-            xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - AU" -configuration ${{ github.event.inputs.config }} -allowProvisioningUpdates
+      - name: Build project (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          # macOS build - use ultraDYN.jucer
+          echo "Building macOS project..."
+          # List available schemes first
+          echo "Available schemes in ultraDYN.xcodeproj:"
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -list
+          # Build VST3 and AU targets separately to avoid AAX
+          echo "Building VST3..."
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - VST3" -configuration ${{ github.event.inputs.config }} -allowProvisioningUpdates
+          echo "Building AU..."
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - AU" -configuration ${{ github.event.inputs.config }} -allowProvisioningUpdates
 
       - name: Fix JUCE paths in project files (Windows)
         if: runner.os == 'Windows'
@@ -293,9 +328,7 @@ jobs:
           path: |
             build/Build/Products/${{ github.event.inputs.config }}/*.vst3
             build/Build/Products/${{ github.event.inputs.config }}/*.component
-            build/Build/Products/${{ github.event.inputs.config }}/*.app
             Builds/VisualStudio2022/x64/${{ github.event.inputs.config }}/VST3/*.vst3
-            Builds/VisualStudio2022/x64/${{ github.event.inputs.config }}/Standalone/*.exe
             ultraDYN-*-macOS.dmg
           retention-days: 7
 
