@@ -101,6 +101,9 @@ jobs:
           # Install create-dmg
           brew install create-dmg
           
+          # Copy README to build directory
+          cp README_DMG.md "Builds/MacOSX/build/Release/README.txt"
+          
           # Create DMG without icon file (since it doesn't exist)
           create-dmg \
             --volname "UltraDYN $VERSION" \
