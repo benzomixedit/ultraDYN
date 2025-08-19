@@ -174,10 +174,6 @@ This plugin is built for 64-bit Windows systems. If you encounter this error:
 
 For technical support or bug reports, please visit the project repository or contact the development team.
 
-## License
-
-[Add your license information here]
-
 ---
 
 **Version**: 1.0.0  
