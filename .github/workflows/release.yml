@@ -201,10 +201,30 @@ jobs:
             Write-Host "Projucer.exe not found, using existing project files"
           }
 
+      - name: Fix project paths
+        shell: pwsh
+        run: |
+          Write-Host "Fixing project paths for Windows..."
+          
+          # Set environment variable for JUCE path
+          $juceDir = "$env:USERPROFILE\JUCE"
+          $env:JUCE_PATH = $juceDir
+          
+          # Update Visual Studio project to use the correct JUCE path
+          $content = Get-Content "Builds\VisualStudio2022\ultraDYN.vcxproj" -Raw
+          $content = $content -replace '\$\(JUCE_PATH\)', $juceDir
+          Set-Content "Builds\VisualStudio2022\ultraDYN.vcxproj" $content -NoNewline
+          
+          Write-Host "Updated Visual Studio project paths"
+
       - name: Build VST3
         shell: pwsh
         run: |
           Write-Host "Building VST3 plugin..."
+          
+          # Set JUCE path environment variable
+          $juceDir = "$env:USERPROFILE\JUCE"
+          $env:JUCE_PATH = $juceDir
           
           # Find MSBuild
           $msbuildPath = $null
@@ -234,6 +254,10 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "Building Standalone app..."
+          
+          # Set JUCE path environment variable
+          $juceDir = "$env:USERPROFILE\JUCE"
+          $env:JUCE_PATH = $juceDir
           
           # Find MSBuild
           $msbuildPath = $null
