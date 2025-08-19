@@ -217,6 +217,18 @@ jobs:
           
           Write-Host "Updated Visual Studio project paths"
 
+      - name: Fix missing include file
+        shell: pwsh
+        run: |
+          Write-Host "Fixing missing include_juce_audio_plugin_client.cpp file..."
+          
+          # Remove the problematic include from the project file
+          $content = Get-Content "Builds\VisualStudio2022\ultraDYN.vcxproj" -Raw
+          $content = $content -replace '<ClCompile Include="\.\.\\\.\.\\JuceLibraryCode\\include_juce_audio_plugin_client\.cpp" />', ''
+          Set-Content "Builds\VisualStudio2022\ultraDYN.vcxproj" $content -NoNewline
+          
+          Write-Host "Removed missing include file from project"
+
       - name: Build VST3
         shell: pwsh
         run: |
