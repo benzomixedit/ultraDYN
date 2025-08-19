@@ -73,33 +73,82 @@ jobs:
         if: matrix.os == 'Windows'
         uses: microsoft/setup-msbuild@v1.1
 
-      - name: Debug project structure (macOS)
+      - name: Build Projucer (macOS)
         if: matrix.os == 'macOS'
         shell: bash
         run: |
-          echo "=== Debugging project structure ==="
-          echo "Current directory: $(pwd)"
-          echo "Project files:"
-          ls -la Builds/MacOSX/
-          echo "Source files:"
-          ls -la Source/
-          echo "JuceLibraryCode files:"
-          ls -la JuceLibraryCode/ | head -10
-          echo "Available targets:"
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -list
+          echo "Building Projucer on macOS..."
+          JUCE_DIR="$HOME/JUCE"
+          cd "$JUCE_DIR/extras/Projucer/Builds/MacOSX"
+          xcodebuild -project Projucer.xcodeproj -target "Projucer - App" -configuration Release
+          echo "Projucer build completed"
 
-      - name: Debug project structure (Windows)
+      - name: Build Projucer (Windows)
         if: matrix.os == 'Windows'
         shell: pwsh
         run: |
-          Write-Host "=== Debugging project structure ==="
-          Write-Host "Current directory: $(Get-Location)"
-          Write-Host "Project files:"
-          Get-ChildItem Builds\VisualStudio2022\
-          Write-Host "Source files:"
-          Get-ChildItem Source\
-          Write-Host "JuceLibraryCode files:"
-          Get-ChildItem JuceLibraryCode\ | Select-Object -First 10
+          Write-Host "Building Projucer on Windows..."
+          $juceDir = "$env:USERPROFILE\JUCE"
+          $projucerSln = Join-Path $juceDir "extras\Projucer\Builds\VisualStudio2022\Projucer.sln"
+          
+          # Find MSBuild
+          $msbuildPath = $null
+          $possiblePaths = @(
+            "msbuild",
+            "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
+            "C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe",
+            "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe"
+          )
+          
+          foreach ($path in $possiblePaths) {
+            if (Get-Command $path -ErrorAction SilentlyContinue) {
+              $msbuildPath = $path
+              break
+            }
+          }
+          
+          if ($msbuildPath) {
+            Write-Host "Using MSBuild at: $msbuildPath"
+            & $msbuildPath $projucerSln "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal"
+            Write-Host "Projucer build completed"
+          } else {
+            Write-Error "MSBuild not found"
+            exit 1
+          }
+
+      - name: Regenerate project files (macOS)
+        if: matrix.os == 'macOS'
+        shell: bash
+        run: |
+          echo "Regenerating project files with Projucer..."
+          JUCE_DIR="$HOME/JUCE"
+          PROJUCER_BIN="$JUCE_DIR/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer"
+          
+          if [ -x "$PROJUCER_BIN" ]; then
+            echo "Running Projucer to regenerate project files..."
+            "$PROJUCER_BIN" --resave "${{ github.workspace }}/ultraDYN.jucer"
+            echo "Project files regenerated"
+          else
+            echo "Projucer binary not found at $PROJUCER_BIN"
+            exit 1
+          fi
+
+      - name: Regenerate project files (Windows)
+        if: matrix.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "Regenerating project files with Projucer..."
+          $juceDir = "$env:USERPROFILE\JUCE"
+          $projucerExe = Join-Path $juceDir "extras\Projucer\Builds\VisualStudio2022\x64\Release\App\Projucer.exe"
+          
+          if (Test-Path $projucerExe) {
+            Write-Host "Running Projucer to regenerate project files..."
+            & $projucerExe --resave ultraDYN.jucer
+            Write-Host "Project files regenerated"
+          } else {
+            Write-Error "Projucer.exe not found at $projucerExe"
+            exit 1
+          }
 
       - name: Setup build environment (macOS)
         if: matrix.os == 'macOS'
@@ -125,13 +174,17 @@ jobs:
         run: |
           echo "Building macOS project..."
           
+          # List available targets
+          echo "Available targets:"
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -list
+          
           # Build VST3 target
           echo "Building VST3..."
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - VST3" -configuration Release -allowProvisioningUpdates -verbose
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - VST3" -configuration Release -allowProvisioningUpdates
           
           # Build AU target
           echo "Building AU..."
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - AU" -configuration Release -allowProvisioningUpdates -verbose
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - AU" -configuration Release -allowProvisioningUpdates
 
       - name: Build project (Windows)
         if: matrix.os == 'Windows'
@@ -157,32 +210,11 @@ jobs:
           
           if ($msbuildPath) {
             Write-Host "Using MSBuild at: $msbuildPath"
-            & $msbuildPath "Builds\VisualStudio2022\ultraDYN.sln" "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:detailed"
+            & $msbuildPath "Builds\VisualStudio2022\ultraDYN.sln" "/p:Configuration=Release" "/p:Platform=x64" "/verbosity:minimal"
           } else {
             Write-Error "MSBuild not found"
             exit 1
           }
-
-      - name: Debug build outputs (macOS)
-        if: matrix.os == 'macOS'
-        shell: bash
-        run: |
-          echo "=== Debugging build outputs ==="
-          echo "Checking for build outputs..."
-          find . -name "*.vst3" -o -name "*.component" -o -name "*.app" 2>/dev/null || echo "No build outputs found"
-          echo "Build directory contents:"
-          ls -la build/ 2>/dev/null || echo "build directory not found"
-          ls -la Builds/MacOSX/build/ 2>/dev/null || echo "Builds/MacOSX/build directory not found"
-
-      - name: Debug build outputs (Windows)
-        if: matrix.os == 'Windows'
-        shell: pwsh
-        run: |
-          Write-Host "=== Debugging build outputs ==="
-          Write-Host "Checking for build outputs..."
-          Get-ChildItem -Recurse -Include "*.vst3", "*.exe" -ErrorAction SilentlyContinue
-          Write-Host "Build directory contents:"
-          Get-ChildItem "Builds\VisualStudio2022\x64\Release\" -ErrorAction SilentlyContinue
 
       - name: Create macOS package
         if: matrix.os == 'macOS'
