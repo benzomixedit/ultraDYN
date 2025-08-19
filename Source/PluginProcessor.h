@@ -49,6 +49,14 @@ public:
     // Parameter access
     juce::AudioProcessorValueTreeState& getAPVTS() { return apvts; }
     
+    // Public API for UI
+    float getGainReduction() const noexcept { return currentGRdB.load(); } // positive dB value (e.g., 6.2)
+    float getInputLevel() const noexcept { return inputLevel.load(); }
+    float getOutputLevel() const noexcept { return outputLevel.load(); }
+    float getUpwardsGain() const noexcept { return currentUpwardsGaindB.load(); } // positive dB value (e.g., 3.1)
+    bool isDownwardsBypassed() const noexcept { return apvts.getRawParameterValue("DOWNWARDS_BYPASS")->load() > 0.5f; }
+    bool isUpwardsBypassed() const noexcept { return apvts.getRawParameterValue("UPWARDS_BYPASS")->load() > 0.5f; }
+    
     // Level metering
     std::atomic<float> inputLevel{-60.0f};
     std::atomic<float> outputLevel{-60.0f};
