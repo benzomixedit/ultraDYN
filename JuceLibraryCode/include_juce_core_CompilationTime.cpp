@@ -28,7 +28,12 @@
 namespace juce
 {
 
-extern const char juce_compilationDate[] = __DATE__;
-extern const char juce_compilationTime[] = __TIME__;
+#if defined(_MSC_VER)
+__declspec(selectany) const char* const juce_compilationDate = __DATE__;
+__declspec(selectany) const char* const juce_compilationTime = __TIME__;
+#else
+const char* const juce_compilationDate = __DATE__;
+const char* const juce_compilationTime = __TIME__;
+#endif
 
 } // namespace juce
