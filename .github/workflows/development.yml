@@ -95,16 +95,19 @@ jobs:
           if ($null -eq $projucerBin) { Write-Error "Projucer.exe not found after build"; exit 1 }
           echo "PROJUCER_BIN=$($projucerBin.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding ascii
 
-      - name: Configure Projucer module paths and resave project
+      - name: Configure Projucer module paths and resave project (macOS)
+        if: runner.os == 'macOS'
         shell: bash
         run: |
-          if [ "${{ runner.os }}" = "macOS" ]; then
-            "$PROJUCER_BIN" --set-global-search-path osx defaultJuceModulePath="$JUCE_DIR/modules"
-            "$PROJUCER_BIN" --resave ultraDYN.jucer
-          elif [ "${{ runner.os }}" = "Windows" ]; then
-            pwsh -Command '"$env:PROJUCER_BIN" --set-global-search-path windows defaultJuceModulePath="${env:JUCE_DIR}\modules"'
-            pwsh -Command '"$env:PROJUCER_BIN" --resave ultraDYN.jucer'
-          fi
+          "$PROJUCER_BIN" --set-global-search-path osx defaultJuceModulePath="$JUCE_DIR/modules"
+          "$PROJUCER_BIN" --resave ultraDYN.jucer
+
+      - name: Configure Projucer module paths and resave project (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "$env:PROJUCER_BIN" --set-global-search-path windows defaultJuceModulePath="$env:JUCE_DIR\modules"
+          & "$env:PROJUCER_BIN" --resave ultraDYN.jucer
 
       - name: Check project files
         shell: bash
