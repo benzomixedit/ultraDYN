@@ -5,9 +5,6 @@ on:
     tags:
       - 'v*'
 
-env:
-  JUCE_VERSION: '8.0.8'
-
 jobs:
   build-and-release:
     strategy:
@@ -27,71 +24,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup JUCE (macOS)
-        if: matrix.os == 'macOS'
-        shell: bash
-        run: |
-          # Setup JUCE in the expected location for macOS
-          JUCE_DIR="$HOME/JUCE"
-          mkdir -p "$JUCE_DIR"
-          cd "$JUCE_DIR"
-          
-          # Clone JUCE repository
-          git clone --depth 1 --branch ${{ env.JUCE_VERSION }} https://github.com/juce-framework/JUCE.git .
-          
-          # Set JUCE path for the build
-          echo "JUCE_DIR=$JUCE_DIR" >> $GITHUB_ENV
-          
-          # Verify JUCE setup
-          echo "JUCE directory contents:"
-          ls -la
-          echo "JUCE modules directory contents:"
-          ls -la modules/ || echo "modules directory not found"
-
-      - name: Setup JUCE (Windows)
-        if: matrix.os == 'Windows'
-        shell: pwsh
-        run: |
-          # Setup JUCE in the expected location for Windows
-          $juceDir = "$env:USERPROFILE\JUCE"
-          New-Item -ItemType Directory -Force -Path $juceDir
-          Set-Location $juceDir
-          
-          # Clone JUCE repository
-          git clone --depth 1 --branch $env:JUCE_VERSION https://github.com/juce-framework/JUCE.git .
-          
-          # Set JUCE path for the build
-          echo "JUCE_DIR=$juceDir" >> $env:GITHUB_ENV
-          
-          # Verify JUCE setup
-          Write-Host "JUCE directory contents:"
-          Get-ChildItem
-          Write-Host "JUCE modules directory contents:"
-          Get-ChildItem modules -ErrorAction SilentlyContinue
-
       - name: Setup Visual Studio (Windows)
         if: matrix.os == 'Windows'
         uses: microsoft/setup-msbuild@v1.1
-
-      - name: Fix project paths (macOS)
-        if: matrix.os == 'macOS'
-        shell: bash
-        run: |
-          echo "Fixing project paths for macOS..."
-          # Update Xcode project to use the correct JUCE path
-          sed -i.bak 's|~/JUCE/modules|$HOME/JUCE/modules|g' Builds/MacOSX/ultraDYN.xcodeproj/project.pbxproj
-          echo "Updated Xcode project paths"
-
-      - name: Fix project paths (Windows)
-        if: matrix.os == 'Windows'
-        shell: pwsh
-        run: |
-          Write-Host "Fixing project paths for Windows..."
-          # Update Visual Studio project to use the correct JUCE path
-          $content = Get-Content "Builds\VisualStudio2022\ultraDYN.vcxproj" -Raw
-          $content = $content -replace '\$\(JUCE_PATH\)', "$env:USERPROFILE\JUCE"
-          Set-Content "Builds\VisualStudio2022\ultraDYN.vcxproj" $content -NoNewline
-          Write-Host "Updated Visual Studio project paths"
 
       - name: Setup build environment (macOS)
         if: matrix.os == 'macOS'
