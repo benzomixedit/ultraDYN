@@ -62,9 +62,6 @@ jobs:
         run: |
           echo "Disabling plugin copy steps in project.pbxproj for CI build..."
           
-          # Remove the problematic plugin copy operations from the shell scripts
-          # This targets the rm -rf, ditto, and codesign commands that cause permission issues
-          
           PROJECT_FILE="Builds/MacOSX/ultraDYN.xcodeproj/project.pbxproj"
           
           if [ -f "$PROJECT_FILE" ]; then
@@ -73,17 +70,9 @@ jobs:
             # Create a backup
             cp "$PROJECT_FILE" "${PROJECT_FILE}.backup"
             
-            # Comment out rm -rf commands from plugin copy scripts
-            # Target the exact pattern: rm -rf \"${destinationPlugin}\"
-            sed -i '' 's/rm -rf \\"${destinationPlugin}\\"/# rm -rf \\"${destinationPlugin}\\" # Disabled for CI/g' "$PROJECT_FILE"
-            
-            # Comment out ditto commands from plugin copy scripts
-            # Target the exact pattern: ditto \"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\" \"${destinationPlugin}\"
-            sed -i '' 's/ditto \\"${TARGET_BUILD_DIR}\/${WRAPPER_NAME}\\" \\"${destinationPlugin}\\"/# ditto \\"${TARGET_BUILD_DIR}\/${WRAPPER_NAME}\\" \\"${destinationPlugin}\\" # Disabled for CI/g' "$PROJECT_FILE"
-            
-            # Comment out codesign commands from plugin copy scripts
-            # Target the exact pattern: codesign --verbose=4 --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" ${entitlementsArg[*]-} ${OTHER_CODE_SIGN_FLAGS-} \"...\"
-            sed -i '' 's/codesign --verbose=4 --force --sign \\"${EXPANDED_CODE_SIGN_IDENTITY}\\" ${entitlementsArg\[\*\]-} ${OTHER_CODE_SIGN_FLAGS-} \\"/# codesign --verbose=4 --force --sign \\"${EXPANDED_CODE_SIGN_IDENTITY}\\" ${entitlementsArg\[\*\]-} ${OTHER_CODE_SIGN_FLAGS-} \\" # Disabled for CI/g' "$PROJECT_FILE"
+            # Replace the entire shellScript content for plugin copy phases with a simple exit
+            # This targets all PBXShellScriptBuildPhase entries that contain "Plugin Copy Step"
+            sed -i '' -E 's/(shellScript = ")[^"]*Plugin Copy Step[^"]*(";)/\1echo "Plugin copy steps disabled for CI"; exit 0;\2/g' "$PROJECT_FILE"
             
             echo "Plugin copy steps disabled successfully"
           else
