@@ -144,9 +144,23 @@ jobs:
           file build-universal/ultraDYN.component/Contents/MacOS/ultraDYN
           file build-universal/ultraDYN.app/Contents/MacOS/ultraDYN
           
-          # Skip code signing for now to avoid certificate issues
-          echo "Skipping code signing for universal binaries (will be unsigned)"
-          echo "Note: Users may need to right-click and 'Open' to bypass Gatekeeper"
+          # Re-sign the universal binaries with the development certificate
+          echo "Re-signing universal binaries..."
+          # List available certificates to debug
+          security find-identity -v -p codesigning
+          # Get the certificate hash and use it for signing
+          CERT_HASH=$(security find-identity -v -p codesigning | grep "UltraDYN Development" | head -1 | cut -d'"' -f2)
+          if [ -n "$CERT_HASH" ]; then
+            echo "Using certificate hash: $CERT_HASH"
+            codesign --force --sign "$CERT_HASH" --timestamp=none build-universal/ultraDYN.vst3
+            codesign --force --sign "$CERT_HASH" --timestamp=none build-universal/ultraDYN.component
+            codesign --force --sign "$CERT_HASH" --timestamp=none build-universal/ultraDYN.app
+          else
+            echo "Certificate not found, trying with name..."
+            codesign --force --sign "UltraDYN Development" --timestamp=none build-universal/ultraDYN.vst3
+            codesign --force --sign "UltraDYN Development" --timestamp=none build-universal/ultraDYN.component
+            codesign --force --sign "UltraDYN Development" --timestamp=none build-universal/ultraDYN.app
+          fi
           
           # Copy universal binaries to the expected build location
           mkdir -p Builds/MacOSX/build/Release/
