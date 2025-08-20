@@ -70,9 +70,15 @@ jobs:
             # Create a backup
             cp "$PROJECT_FILE" "${PROJECT_FILE}.backup"
             
-            # Replace the entire shellScript content for plugin copy phases with a simple exit
-            # This targets all PBXShellScriptBuildPhase entries that contain "Plugin Copy Step"
-            sed -i '' -E 's/(shellScript = ")[^"]*Plugin Copy Step[^"]*(";)/\1echo "Plugin copy steps disabled for CI"; exit 0;\2/g' "$PROJECT_FILE"
+            # Replace the entire shellScript content for each specific plugin copy phase
+            # Target the VST3 plugin copy step (A9A4B81C16FC3B13711B60B3)
+            sed -i '' '/A9A4B81C16FC3B13711B60B3/,/shellScript = ".*"/{/shellScript = "/{s/shellScript = ".*"/shellScript = "echo \"VST3 plugin copy disabled for CI\"; exit 0;"/;}}' "$PROJECT_FILE"
+            
+            # Target the AAX plugin copy step (D956495E04E77727E3BC1B8B)
+            sed -i '' '/D956495E04E77727E3BC1B8B/,/shellScript = ".*"/{/shellScript = "/{s/shellScript = ".*"/shellScript = "echo \"AAX plugin copy disabled for CI\"; exit 0;"/;}}' "$PROJECT_FILE"
+            
+            # Target the AU plugin copy step (EA49570E07BD518D7ED8DDD3)
+            sed -i '' '/EA49570E07BD518D7ED8DDD3/,/shellScript = ".*"/{/shellScript = "/{s/shellScript = ".*"/shellScript = "echo \"AU plugin copy disabled for CI\"; exit 0;"/;}}' "$PROJECT_FILE"
             
             echo "Plugin copy steps disabled successfully"
           else
