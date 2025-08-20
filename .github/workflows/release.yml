@@ -91,9 +91,9 @@ jobs:
           
           # Build for ARM64 first
           echo "Building ARM64 version..."
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "VST3" -configuration Release -arch arm64 build
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "AU" -configuration Release -arch arm64 build
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "Standalone Plugin" -configuration Release -arch arm64 build
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - VST3" -configuration Release -arch arm64 build
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - AU" -configuration Release -arch arm64 build
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - Standalone Plugin" -configuration Release -arch arm64 build
           
           # Copy ARM64 builds to separate directory
           mkdir -p build-arm64
@@ -103,9 +103,9 @@ jobs:
           
           # Build for x86_64
           echo "Building x86_64 version..."
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "VST3" -configuration Release -arch x86_64 build
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "AU" -configuration Release -arch x86_64 build
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "Standalone Plugin" -configuration Release -arch x86_64 build
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - VST3" -configuration Release -arch x86_64 build
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - AU" -configuration Release -arch x86_64 build
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - Standalone Plugin" -configuration Release -arch x86_64 build
           
           # Copy x86_64 builds to separate directory
           mkdir -p build-x86_64
