@@ -57,6 +57,36 @@ jobs:
             echo "Projucer binary not found, using existing project files"
           fi
 
+      - name: Disable plugin copy steps for CI
+        shell: bash
+        run: |
+          echo "Disabling plugin copy steps in project.pbxproj for CI build..."
+          
+          # Remove the problematic plugin copy operations from the shell scripts
+          # This targets the rm -rf, ditto, and codesign commands that cause permission issues
+          
+          PROJECT_FILE="Builds/MacOSX/ultraDYN.xcodeproj/project.pbxproj"
+          
+          if [ -f "$PROJECT_FILE" ]; then
+            echo "Modifying $PROJECT_FILE to disable plugin copy steps..."
+            
+            # Create a backup
+            cp "$PROJECT_FILE" "${PROJECT_FILE}.backup"
+            
+            # Remove rm -rf commands from plugin copy scripts
+            sed -i '' 's/rm -rf "${destinationPlugin}"/# rm -rf "${destinationPlugin}" # Disabled for CI/g' "$PROJECT_FILE"
+            
+            # Remove ditto commands from plugin copy scripts
+            sed -i '' 's/ditto "${TARGET_BUILD_DIR}\/${WRAPPER_NAME}" "${destinationPlugin}"/# ditto "${TARGET_BUILD_DIR}\/${WRAPPER_NAME}" "${destinationPlugin}" # Disabled for CI/g' "$PROJECT_FILE"
+            
+            # Remove codesign commands from plugin copy scripts
+            sed -i '' 's/codesign --verbose=4 --force --sign "${EXPANDED_CODE_SIGN_IDENTITY}" ${entitlementsArg\[\*\]-} ${OTHER_CODE_SIGN_FLAGS-} "${destinationPlugin}"/# codesign --verbose=4 --force --sign "${EXPANDED_CODE_SIGN_IDENTITY}" ${entitlementsArg\[\*\]-} ${OTHER_CODE_SIGN_FLAGS-} "${destinationPlugin}" # Disabled for CI/g' "$PROJECT_FILE"
+            
+            echo "Plugin copy steps disabled successfully"
+          else
+            echo "Warning: Project file not found at $PROJECT_FILE"
+          fi
+
       - name: Setup build environment
         shell: bash
         run: |
@@ -78,9 +108,6 @@ jobs:
         shell: bash
         run: |
           echo "Building universal binaries (ARM64 + x86_64)..."
-          
-          # Disable plugin copy scripts for CI build
-          export SKIP_PLUGIN_COPY=1
           
           # Build for ARM64 (without clean to avoid permission issues)
           echo "Building ARM64 version..."
