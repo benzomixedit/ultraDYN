@@ -154,7 +154,7 @@ build_macos() {
             print_status "Building for $arch..."
             export ARCHFLAGS="-arch $arch"
             xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj \
-                -scheme ultraDYN \
+                -scheme "ultraDYN - All" \
                 -configuration $CONFIGURATION \
                 -arch $arch \
                 -derivedDataPath Builds/MacOSX/build-$arch \
@@ -184,7 +184,7 @@ build_macos() {
         # Build for single architecture
         export ARCHFLAGS="-arch $ARCHITECTURE"
         xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj \
-            -scheme ultraDYN \
+            -scheme "ultraDYN - All" \
             -configuration $CONFIGURATION \
             -arch $ARCHITECTURE \
             -derivedDataPath Builds/MacOSX/build \

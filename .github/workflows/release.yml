@@ -74,23 +74,54 @@ jobs:
           security import certificate.p12 -k build.keychain -P password -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
 
-      - name: Build VST3
+      - name: Build Universal Binaries
         shell: bash
         run: |
-          echo "Building VST3 plugin..."
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - VST3" -configuration Release -allowProvisioningUpdates
-
-      - name: Build AU
-        shell: bash
-        run: |
-          echo "Building AU plugin..."
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - AU" -configuration Release -allowProvisioningUpdates
-
-      - name: Build Standalone
-        shell: bash
-        run: |
-          echo "Building Standalone app..."
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "ultraDYN - Standalone Plugin" -configuration Release -allowProvisioningUpdates
+          echo "Building universal binaries (ARM64 + x86_64)..."
+          
+          # Build for ARM64
+          echo "Building ARM64 version..."
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme "ultraDYN - All" -configuration Release -arch arm64 -derivedDataPath build-arm64 clean build
+          
+          # Build for x86_64
+          echo "Building x86_64 version..."
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme "ultraDYN - All" -configuration Release -arch x86_64 -derivedDataPath build-x86_64 clean build
+          
+          # Create universal binary by combining both architectures
+          echo "Creating universal binary..."
+          mkdir -p build-universal
+          
+          # Copy ARM64 version as base
+          cp -r build-arm64/Build/Products/Release/ultraDYN.vst3 build-universal/
+          cp -r build-arm64/Build/Products/Release/ultraDYN.component build-universal/
+          cp -r build-arm64/Build/Products/Release/ultraDYN.app build-universal/
+          
+          # Combine architectures using lipo
+          lipo -create \
+            build-arm64/Build/Products/Release/ultraDYN.vst3/Contents/MacOS/ultraDYN \
+            build-x86_64/Build/Products/Release/ultraDYN.vst3/Contents/MacOS/ultraDYN \
+            -output build-universal/ultraDYN.vst3/Contents/MacOS/ultraDYN
+          
+          lipo -create \
+            build-arm64/Build/Products/Release/ultraDYN.component/Contents/MacOS/ultraDYN \
+            build-x86_64/Build/Products/Release/ultraDYN.component/Contents/MacOS/ultraDYN \
+            -output build-universal/ultraDYN.component/Contents/MacOS/ultraDYN
+          
+          lipo -create \
+            build-arm64/Build/Products/Release/ultraDYN.app/Contents/MacOS/ultraDYN \
+            build-x86_64/Build/Products/Release/ultraDYN.app/Contents/MacOS/ultraDYN \
+            -output build-universal/ultraDYN.app/Contents/MacOS/ultraDYN
+          
+          # Verify universal binaries
+          echo "Verifying universal binaries..."
+          file build-universal/ultraDYN.vst3/Contents/MacOS/ultraDYN
+          file build-universal/ultraDYN.component/Contents/MacOS/ultraDYN
+          file build-universal/ultraDYN.app/Contents/MacOS/ultraDYN
+          
+          # Copy universal binaries to the expected build location
+          cp -r build-universal/* Builds/MacOSX/build/Release/
+          
+          echo "Universal binary build completed!"
 
       - name: Create DMG
         shell: bash

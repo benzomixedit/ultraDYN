@@ -35,3 +35,4 @@ Thank you for downloading UltraDYN. This guide will help you install the plugin 
 If you encounter any issues, please visit our GitHub repository for support.
 
 Enjoy using UltraDYN! 🎵
+
