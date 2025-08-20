@@ -71,14 +71,17 @@ jobs:
             cp "$PROJECT_FILE" "${PROJECT_FILE}.backup"
             
             # Replace the entire shellScript content for each specific plugin copy phase
-            # Target the VST3 plugin copy step (A9A4B81C16FC3B13711B60B3)
-            sed -i '' '/A9A4B81C16FC3B13711B60B3/,/shellScript = ".*"/{/shellScript = "/{s/shellScript = ".*"/shellScript = "echo \"VST3 plugin copy disabled for CI\"; exit 0;"/;}}' "$PROJECT_FILE"
+            # Use a simpler approach: replace the entire shellScript line for each plugin copy step
+            # This targets the shellScript lines that contain the long plugin copy scripts
             
-            # Target the AAX plugin copy step (D956495E04E77727E3BC1B8B)
-            sed -i '' '/D956495E04E77727E3BC1B8B/,/shellScript = ".*"/{/shellScript = "/{s/shellScript = ".*"/shellScript = "echo \"AAX plugin copy disabled for CI\"; exit 0;"/;}}' "$PROJECT_FILE"
+            # Replace VST3 plugin copy script
+            sed -i '' 's/shellScript = "set -euo pipefail.*VST3.*";/shellScript = "echo \"VST3 plugin copy disabled for CI\"; exit 0;";/' "$PROJECT_FILE"
             
-            # Target the AU plugin copy step (EA49570E07BD518D7ED8DDD3)
-            sed -i '' '/EA49570E07BD518D7ED8DDD3/,/shellScript = ".*"/{/shellScript = "/{s/shellScript = ".*"/shellScript = "echo \"AU plugin copy disabled for CI\"; exit 0;"/;}}' "$PROJECT_FILE"
+            # Replace AAX plugin copy script  
+            sed -i '' 's/shellScript = "set -euo pipefail.*Avid.*";/shellScript = "echo \"AAX plugin copy disabled for CI\"; exit 0;";/' "$PROJECT_FILE"
+            
+            # Replace AU plugin copy script
+            sed -i '' 's/shellScript = "set -euo pipefail.*Components.*";/shellScript = "echo \"AU plugin copy disabled for CI\"; exit 0;";/' "$PROJECT_FILE"
             
             echo "Plugin copy steps disabled successfully"
           else
