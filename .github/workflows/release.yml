@@ -73,14 +73,17 @@ jobs:
             # Create a backup
             cp "$PROJECT_FILE" "${PROJECT_FILE}.backup"
             
-            # Remove rm -rf commands from plugin copy scripts
-            sed -i '' 's/rm -rf "${destinationPlugin}"/# rm -rf "${destinationPlugin}" # Disabled for CI/g' "$PROJECT_FILE"
+            # Comment out rm -rf commands from plugin copy scripts
+            # Target the exact pattern: rm -rf \"${destinationPlugin}\"
+            sed -i '' 's/rm -rf \\"${destinationPlugin}\\"/# rm -rf \\"${destinationPlugin}\\" # Disabled for CI/g' "$PROJECT_FILE"
             
-            # Remove ditto commands from plugin copy scripts
-            sed -i '' 's/ditto "${TARGET_BUILD_DIR}\/${WRAPPER_NAME}" "${destinationPlugin}"/# ditto "${TARGET_BUILD_DIR}\/${WRAPPER_NAME}" "${destinationPlugin}" # Disabled for CI/g' "$PROJECT_FILE"
+            # Comment out ditto commands from plugin copy scripts
+            # Target the exact pattern: ditto \"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\" \"${destinationPlugin}\"
+            sed -i '' 's/ditto \\"${TARGET_BUILD_DIR}\/${WRAPPER_NAME}\\" \\"${destinationPlugin}\\"/# ditto \\"${TARGET_BUILD_DIR}\/${WRAPPER_NAME}\\" \\"${destinationPlugin}\\" # Disabled for CI/g' "$PROJECT_FILE"
             
-            # Remove codesign commands from plugin copy scripts
-            sed -i '' 's/codesign --verbose=4 --force --sign "${EXPANDED_CODE_SIGN_IDENTITY}" ${entitlementsArg\[\*\]-} ${OTHER_CODE_SIGN_FLAGS-} "${destinationPlugin}"/# codesign --verbose=4 --force --sign "${EXPANDED_CODE_SIGN_IDENTITY}" ${entitlementsArg\[\*\]-} ${OTHER_CODE_SIGN_FLAGS-} "${destinationPlugin}" # Disabled for CI/g' "$PROJECT_FILE"
+            # Comment out codesign commands from plugin copy scripts
+            # Target the exact pattern: codesign --verbose=4 --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" ${entitlementsArg[*]-} ${OTHER_CODE_SIGN_FLAGS-} \"...\"
+            sed -i '' 's/codesign --verbose=4 --force --sign \\"${EXPANDED_CODE_SIGN_IDENTITY}\\" ${entitlementsArg\[\*\]-} ${OTHER_CODE_SIGN_FLAGS-} \\"/# codesign --verbose=4 --force --sign \\"${EXPANDED_CODE_SIGN_IDENTITY}\\" ${entitlementsArg\[\*\]-} ${OTHER_CODE_SIGN_FLAGS-} \\" # Disabled for CI/g' "$PROJECT_FILE"
             
             echo "Plugin copy steps disabled successfully"
           else
