@@ -57,17 +57,38 @@ jobs:
             echo "Projucer binary not found, using existing project files"
           fi
 
-      - name: Skip plugin copy steps for CI
+      - name: Disable plugin copy steps for CI
         shell: bash
         run: |
-          echo "Setting environment variables to skip plugin copy steps in CI build..."
+          echo "Disabling plugin copy steps in project.pbxproj for CI build..."
           
-          # Set environment variables that will be used by the build process
-          # These will be available to the xcodebuild commands
-          echo "SKIP_PLUGIN_COPY=1" >> $GITHUB_ENV
-          echo "CI_BUILD=1" >> $GITHUB_ENV
+          PROJECT_FILE="Builds/MacOSX/ultraDYN.xcodeproj/project.pbxproj"
           
-          echo "Environment variables set to skip plugin copy steps"
+          # Replace the entire shellScript content for each plugin copy step with a simple exit
+          # This completely disables the plugin copy functionality
+          
+          # Disable VST3 plugin copy (ID: A9A4B81C16FC3B13711B60B3)
+          sed -i '' '/A9A4B81C16FC3B13711B60B3.*Plugin Copy Step/,/};/ {
+            /shellScript = / {
+              s/shellScript = ".*";/shellScript = "echo \"VST3 plugin copy disabled for CI\"; exit 0;";/
+            }
+          }' "$PROJECT_FILE"
+          
+          # Disable AAX plugin copy (ID: D956495E04E77727E3BC1B8B)
+          sed -i '' '/D956495E04E77727E3BC1B8B.*Plugin Copy Step/,/};/ {
+            /shellScript = / {
+              s/shellScript = ".*";/shellScript = "echo \"AAX plugin copy disabled for CI\"; exit 0;";/
+            }
+          }' "$PROJECT_FILE"
+          
+          # Disable AU plugin copy (ID: EA49570E07BD518D7ED8DDD3)
+          sed -i '' '/EA49570E07BD518D7ED8DDD3.*Plugin Copy Step/,/};/ {
+            /shellScript = / {
+              s/shellScript = ".*";/shellScript = "echo \"AU plugin copy disabled for CI\"; exit 0;";/
+            }
+          }' "$PROJECT_FILE"
+          
+          echo "Plugin copy steps disabled in project.pbxproj"
 
       - name: Setup build environment
         shell: bash
@@ -93,11 +114,11 @@ jobs:
           
           # Build for ARM64 (without clean to avoid permission issues)
           echo "Building ARM64 version..."
-          SKIP_PLUGIN_COPY=1 CI_BUILD=1 xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme "ultraDYN - All" -configuration Release -arch arm64 -derivedDataPath build-arm64 build
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme "ultraDYN - All" -configuration Release -arch arm64 -derivedDataPath build-arm64 build
           
           # Build for x86_64 (without clean to avoid permission issues)
           echo "Building x86_64 version..."
-          SKIP_PLUGIN_COPY=1 CI_BUILD=1 xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme "ultraDYN - All" -configuration Release -arch x86_64 -derivedDataPath build-x86_64 build
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme "ultraDYN - All" -configuration Release -arch x86_64 -derivedDataPath build-x86_64 build
           
           # Create universal binary by combining both architectures
           echo "Creating universal binary..."
