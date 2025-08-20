@@ -60,35 +60,12 @@ jobs:
       - name: Disable plugin copy steps for CI
         shell: bash
         run: |
-          echo "Disabling plugin copy steps in project.pbxproj for CI build..."
+          echo "Disabling plugin copy steps for CI build..."
           
-          PROJECT_FILE="Builds/MacOSX/ultraDYN.xcodeproj/project.pbxproj"
+          # Set environment variable that will be used by the build process
+          echo "CI_BUILD=1" >> $GITHUB_ENV
           
-          # Replace the entire shellScript content for each plugin copy step with a simple exit
-          # This completely disables the plugin copy functionality
-          
-          # Disable VST3 plugin copy (ID: A9A4B81C16FC3B13711B60B3)
-          sed -i '' '/A9A4B81C16FC3B13711B60B3.*Plugin Copy Step/,/};/ {
-            /shellScript = / {
-              s/shellScript = ".*";/shellScript = "echo \"VST3 plugin copy disabled for CI\"; exit 0;";/
-            }
-          }' "$PROJECT_FILE"
-          
-          # Disable AAX plugin copy (ID: D956495E04E77727E3BC1B8B)
-          sed -i '' '/D956495E04E77727E3BC1B8B.*Plugin Copy Step/,/};/ {
-            /shellScript = / {
-              s/shellScript = ".*";/shellScript = "echo \"AAX plugin copy disabled for CI\"; exit 0;";/
-            }
-          }' "$PROJECT_FILE"
-          
-          # Disable AU plugin copy (ID: EA49570E07BD518D7ED8DDD3)
-          sed -i '' '/EA49570E07BD518D7ED8DDD3.*Plugin Copy Step/,/};/ {
-            /shellScript = / {
-              s/shellScript = ".*";/shellScript = "echo \"AU plugin copy disabled for CI\"; exit 0;";/
-            }
-          }' "$PROJECT_FILE"
-          
-          echo "Plugin copy steps disabled in project.pbxproj"
+          echo "Plugin copy steps will be disabled via environment variable"
 
       - name: Setup build environment
         shell: bash
@@ -112,13 +89,17 @@ jobs:
         run: |
           echo "Building universal binaries (ARM64 + x86_64)..."
           
-          # Build for ARM64 (without clean to avoid permission issues)
+          # Build individual targets for ARM64 (this avoids plugin copy steps)
           echo "Building ARM64 version..."
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme "ultraDYN - All" -configuration Release -arch arm64 -derivedDataPath build-arm64 build
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "VST3" -configuration Release -arch arm64 -derivedDataPath build-arm64 build
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "AU" -configuration Release -arch arm64 -derivedDataPath build-arm64 build
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "Standalone Plugin" -configuration Release -arch arm64 -derivedDataPath build-arm64 build
           
-          # Build for x86_64 (without clean to avoid permission issues)
+          # Build individual targets for x86_64 (this avoids plugin copy steps)
           echo "Building x86_64 version..."
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme "ultraDYN - All" -configuration Release -arch x86_64 -derivedDataPath build-x86_64 build
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "VST3" -configuration Release -arch x86_64 -derivedDataPath build-x86_64 build
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "AU" -configuration Release -arch x86_64 -derivedDataPath build-x86_64 build
+          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -target "Standalone Plugin" -configuration Release -arch x86_64 -derivedDataPath build-x86_64 build
           
           # Create universal binary by combining both architectures
           echo "Creating universal binary..."
