@@ -57,36 +57,17 @@ jobs:
             echo "Projucer binary not found, using existing project files"
           fi
 
-      - name: Disable plugin copy steps for CI
+      - name: Skip plugin copy steps for CI
         shell: bash
         run: |
-          echo "Disabling plugin copy steps in project.pbxproj for CI build..."
+          echo "Setting environment variables to skip plugin copy steps in CI build..."
           
-          PROJECT_FILE="Builds/MacOSX/ultraDYN.xcodeproj/project.pbxproj"
+          # Set environment variables that will be used by the build process
+          # These will be available to the xcodebuild commands
+          echo "SKIP_PLUGIN_COPY=1" >> $GITHUB_ENV
+          echo "CI_BUILD=1" >> $GITHUB_ENV
           
-          if [ -f "$PROJECT_FILE" ]; then
-            echo "Modifying $PROJECT_FILE to disable plugin copy steps..."
-            
-            # Create a backup
-            cp "$PROJECT_FILE" "${PROJECT_FILE}.backup"
-            
-            # Replace the entire shellScript content for each specific plugin copy phase
-            # Use a simpler approach: replace the entire shellScript line for each plugin copy step
-            # This targets the shellScript lines that contain the long plugin copy scripts
-            
-            # Replace VST3 plugin copy script
-            sed -i '' 's/shellScript = "set -euo pipefail.*VST3.*";/shellScript = "echo \"VST3 plugin copy disabled for CI\"; exit 0;";/' "$PROJECT_FILE"
-            
-            # Replace AAX plugin copy script  
-            sed -i '' 's/shellScript = "set -euo pipefail.*Avid.*";/shellScript = "echo \"AAX plugin copy disabled for CI\"; exit 0;";/' "$PROJECT_FILE"
-            
-            # Replace AU plugin copy script
-            sed -i '' 's/shellScript = "set -euo pipefail.*Components.*";/shellScript = "echo \"AU plugin copy disabled for CI\"; exit 0;";/' "$PROJECT_FILE"
-            
-            echo "Plugin copy steps disabled successfully"
-          else
-            echo "Warning: Project file not found at $PROJECT_FILE"
-          fi
+          echo "Environment variables set to skip plugin copy steps"
 
       - name: Setup build environment
         shell: bash
@@ -112,11 +93,11 @@ jobs:
           
           # Build for ARM64 (without clean to avoid permission issues)
           echo "Building ARM64 version..."
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme "ultraDYN - All" -configuration Release -arch arm64 -derivedDataPath build-arm64 build
+          SKIP_PLUGIN_COPY=1 CI_BUILD=1 xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme "ultraDYN - All" -configuration Release -arch arm64 -derivedDataPath build-arm64 build
           
           # Build for x86_64 (without clean to avoid permission issues)
           echo "Building x86_64 version..."
-          xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme "ultraDYN - All" -configuration Release -arch x86_64 -derivedDataPath build-x86_64 build
+          SKIP_PLUGIN_COPY=1 CI_BUILD=1 xcodebuild -project Builds/MacOSX/ultraDYN.xcodeproj -scheme "ultraDYN - All" -configuration Release -arch x86_64 -derivedDataPath build-x86_64 build
           
           # Create universal binary by combining both architectures
           echo "Creating universal binary..."
