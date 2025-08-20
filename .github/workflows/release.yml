@@ -144,6 +144,12 @@ jobs:
           file build-universal/ultraDYN.component/Contents/MacOS/ultraDYN
           file build-universal/ultraDYN.app/Contents/MacOS/ultraDYN
           
+          # Re-sign the universal binaries with the development certificate
+          echo "Re-signing universal binaries..."
+          codesign --force --sign "UltraDYN Development" --timestamp=none build-universal/ultraDYN.vst3
+          codesign --force --sign "UltraDYN Development" --timestamp=none build-universal/ultraDYN.component
+          codesign --force --sign "UltraDYN Development" --timestamp=none build-universal/ultraDYN.app
+          
           # Copy universal binaries to the expected build location
           mkdir -p Builds/MacOSX/build/Release/
           cp -r build-universal/* Builds/MacOSX/build/Release/
@@ -173,6 +179,9 @@ jobs:
             --app-drop-link 425 120 \
             "ultraDYN-$VERSION-macOS.dmg" \
             "Builds/MacOSX/build/Release/"
+          
+          # Remove quarantine attribute from DMG to help with Gatekeeper
+          xattr -cr "ultraDYN-$VERSION-macOS.dmg"
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
